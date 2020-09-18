@@ -11,11 +11,9 @@ from deeprobust.graph.global_attack import BaseAttack
 import networkx as nx
 
 class Structack(BaseAttack):
-    def __init__(self, degree_percentile_range=[0,1], device='cpu'):
+    def __init__(self, device='cpu'):
         super(Structack, self).__init__(None, None, attack_structure=True, attack_features=False, device=device)
-        
         self.modified_adj = None
-        self.frm, self.to = degree_percentile_range
 
     def get_nodes_with_degree_percentile(self, G, frm, to):
 
@@ -26,6 +24,16 @@ class Structack(BaseAttack):
         nodes = nodes[frm:to]
         return [x[0] for x in nodes]
 
+    def get_purturbed_adj(self, adj, n_perturbations):
+        pass
+
+    def attack(self, ori_adj, n_perturbations):
+        self.modified_adj = self.get_purturbed_adj(ori_adj,n_perturbations)
+
+class StructackOneEnd(Structack):
+    def __init__(self, degree_percentile_range=[0,1], device='cpu'):
+        super(StructackOneEnd, self).__init__(device=device)
+        self.frm, self.to = degree_percentile_range
     def get_purturbed_adj(self, adj, n_perturbations):
         graph = nx.from_scipy_sparse_matrix(utils.to_scipy(adj), create_using=nx.Graph)
         
@@ -38,16 +46,20 @@ class Structack(BaseAttack):
 
         modified_adj, _ = utils.to_tensor(nx.to_scipy_sparse_matrix(graph), np.array([[0]]), None, self.device)
         return modified_adj
-    
-
-    def attack(self, ori_adj, n_perturbations):
-        self.modified_adj = self.get_purturbed_adj(ori_adj,n_perturbations)
-
-class StructackOneEnd(Structack):
-    def get_purturbed_adj(self, adj):
-        pass
 
 class StructackBothEnds(Structack):
-    def get_purturbed_adj(self, adj):
-        pass
+    def __init__(self, degree_percentile_range=[0,1,0,1], device='cpu'):
+        super(StructackBothEnds, self).__init__(device=device)
+        self.frm1, self.to1, self.frm2, self.to2 = degree_percentile_range
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(utils.to_scipy(adj), create_using=nx.Graph)
+        
+        # perturb
+        rows = np.random.choice(self.get_nodes_with_degree_percentile(graph,self.frm1,self.to1),n_perturbations)
+        cols = np.random.choice(self.get_nodes_with_degree_percentile(graph,self.frm2,self.to2),n_perturbations)
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj, _ = utils.to_tensor(nx.to_scipy_sparse_matrix(graph), np.array([[0]]), None, self.device)
+        return modified_adj
 

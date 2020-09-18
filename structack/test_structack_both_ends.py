@@ -3,7 +3,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch.optim as optim
 from deeprobust.graph.defense import GCN
-from structack.structack import StructackOneEnd
+from structack.structack import StructackOneEnd, StructackBothEnds
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 import argparse
@@ -25,8 +25,10 @@ parser.add_argument('--dropout', type=float, default=0.5,
 parser.add_argument('--dataset', type=str, default='citeseer', choices=['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed'], help='dataset')
 parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
 parser.add_argument('--percentile_step', type=float, default=None, help='If None, [frm,to] is taken instead')
-parser.add_argument('--frm', type=float, default=0,help='Percentile from')
-parser.add_argument('--to', type=float, default=1,help='Percentile to')
+parser.add_argument('--frm1', type=float, default=0,help='Percentile from')
+parser.add_argument('--to1', type=float, default=1,help='Percentile to')
+parser.add_argument('--frm2', type=float, default=0,help='Percentile from')
+parser.add_argument('--to2', type=float, default=1,help='Percentile to')
 
 args = parser.parse_args()
 
@@ -67,31 +69,35 @@ def test(adj):
 
     return acc_test.item()
 
-
 def main():
-    print('=== testing GCN on original(clean) graph ===')
-    test(adj)
+    print(f'Accuracy on the clean graph: {test(adj)}')
     if args.percentile_step is None:
-        model = Structack(degree_percentile_range=[args.frm,args.to])
+        model = StructackBothEnds(degree_percentile_range=[args.frm1,args.to1,args.frm2,args.to2])
         model.attack(adj, perturbations)
         modified_adj = model.modified_adj
         # modified_features = model.modified_features
-        test(modified_adj)
+        accs = []
+        for i in range(10):
+            model.attack(adj, perturbations)
+            modified_adj = model.modified_adj
+            # modified_features = model.modified_features
+            accs.append(test(modified_adj))
+        print(f'percentile [{args.frm1:.2f},{args.to1:.2f}] - [{args.frm2:.2f},{args.to2:.2f}]: {np.mean(accs):.4f} +- {np.std(accs):.2f}')
     else:
-        for frm in np.arange(0,1,args.percentile_step):
-            to = frm + args.percentile_step
-            model = Structack(degree_percentile_range=[args.frm,args.to])
-            accs = []
-            for i in range(100):
-                model.attack(adj, perturbations)
-                modified_adj = model.modified_adj
-                # modified_features = model.modified_features
-                accs.append(test(modified_adj))
-            print(f'percentile [{frm:.2f},{to:.2f}]: {np.mean(accs):.4f} +- {np.std(accs):.2f}')
+        for frm1 in np.arange(0,1,args.percentile_step):
+            to1 = frm1 + args.percentile_step
+            print(f'percentile [{frm1:.2f},{to1:.2f}]:')
+            for frm2 in np.arange(0,1,args.percentile_step):
+                to2 = frm2 + args.percentile_step
+                model = StructackBothEnds(degree_percentile_range=[frm1,to1,frm2,to2])
+                accs = []
+                for i in range(10):
+                    model.attack(adj, perturbations)
+                    modified_adj = model.modified_adj
+                    # modified_features = model.modified_features
+                    accs.append(test(modified_adj))
+                print(f'percentile [{frm2:.2f},{to2:.2f}]: {np.mean(accs):.4f} +- {np.std(accs):.2f}')
 
-    # # if you want to save the modified adj/features, uncomment the code below
-    # model.save_adj(root='./', name=f'mod_adj')
-    # model.save_features(root='./', name='mod_features')
 
 if __name__ == '__main__':
     main()
