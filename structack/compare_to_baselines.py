@@ -7,7 +7,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random
-from structack.structack import StructackOneEnd, StructackBothEnds
+from structack.structack import StructackOneEnd, StructackBothEnds, StructackBothEndsGreedy
 import pandas as pd
 
 
@@ -23,6 +23,10 @@ def attack_structack1(model, adj, labels, n_perturbations):
 
 def attack_structack2(model, adj, labels, n_perturbations):
     model.attack(adj, n_perturbations)
+
+def attack_structack2_greedy(model, adj, labels, n_perturbations):
+    model.attack(adj, n_perturbations)
+
 
 def arrack_mettaack(model, adj, labels, n_perturbations, features, idx_train, idx_unlabeled):
     pass
@@ -112,19 +116,23 @@ def test(adj,data, cuda):
 
 
 def main():
-    attacks = [attack_random,
+    df_path = 'reports/initial_eval.csv'
+    attacks = [
+               attack_random,
                attack_dice,
                attack_structack1,
-               attack_structack2]
-    models = [Random(),
+               attack_structack2,
+               attack_structack2_greedy,
+               ]
+    models = [
+              Random(),
               DICE(),
               StructackOneEnd(degree_percentile_range=[0,.1]),
               StructackBothEnds(degree_percentile_range=[0,.1,0,.1]),
+              StructackBothEndsGreedy(),
               ]
     datasets = ['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed']
-    perturbation_rate = 0.05
     cuda = torch.cuda.is_available()
-    df = pd.DataFrame()
     for dataset in datasets:
         for attack, model in zip(attacks,models):
             data = Dataset(root='/tmp/', name=dataset)
@@ -132,15 +140,18 @@ def main():
             acc = test(adj, data, cuda)
             row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             print(row)
+            df = pd.DataFrame()
             df = df.append(row, ignore_index=True)
-            for perturbation_rate in [0.10,0.15,0.20]:
+            for perturbation_rate in [0.01]:#0.05,0.10,0.15,0.20]:
                 for seed in range(10):
                     modified_adj = apply_perturbation(model, attack, data, perturbation_rate, cuda, seed)
                     acc = test(modified_adj, data, cuda)
                     row = {'dataset':dataset, 'attack':model.__class__.__name__, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate}
                     print(row)
                     df = df.append(row, ignore_index=True)
-    df.to_csv('reports/initial_eval-2.csv',index=False)
+            cdf = pd.read_csv(df_path)
+            df = pd.concat([cdf,df])
+            df.to_csv(df_path,index=False)
 
 if __name__ == '__main__':
     main()
