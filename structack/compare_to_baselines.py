@@ -24,6 +24,31 @@ def attack_structack1(model, adj, labels, n_perturbations):
 def attack_structack2(model, adj, labels, n_perturbations):
     model.attack(adj, n_perturbations)
 
+def arrack_mettaack(model, adj, labels, n_perturbations, features, idx_train, idx_unlabeled):
+    pass
+
+def build_random(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return Random()
+
+def build_dice(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return DICE(),
+
+def build_dice(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return StructackOneEnd(degree_percentile_range=[0,.1])
+
+def build_dice(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return StructackBothEnds(degree_percentile_range=[0,.1,0,.1])
+
+def build_mettack(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return Metattack(model=surrogate, nnodes=adj.shape[0], feature_shape=features.shape,
+            attack_structure=True, attack_features=False, device=device, lambda_=lambda_)
+
+def build_pgd(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return PGDAttack(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
+
+def build_minmax(surrogate=None, victim_model=None, adj=None, features=None, device=None, lambda_=None):
+    return MinMax(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
+
 
 def apply_perturbation(model, attack, data, ptb_rate, cuda, seed=0):
     np.random.seed(seed)
@@ -84,11 +109,18 @@ def test(adj,data, cuda):
     return acc_test.item()
 
 
+
+
 def main():
-    attacks = [attack_random,attack_dice,
-    attack_structack1,attack_structack2]
-    models = [Random(), DICE(),
-     StructackOneEnd(degree_percentile_range=[0,.1]), StructackBothEnds(degree_percentile_range=[0,.1,0,.1])]
+    attacks = [attack_random,
+               attack_dice,
+               attack_structack1,
+               attack_structack2]
+    models = [Random(),
+              DICE(),
+              StructackOneEnd(degree_percentile_range=[0,.1]),
+              StructackBothEnds(degree_percentile_range=[0,.1,0,.1]),
+              ]
     datasets = ['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed']
     perturbation_rate = 0.05
     cuda = torch.cuda.is_available()
@@ -101,13 +133,14 @@ def main():
             row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             print(row)
             df = df.append(row, ignore_index=True)
-            for seed in range(10):
-                modified_adj = apply_perturbation(model, attack, data, perturbation_rate, cuda, seed)
-                acc = test(modified_adj, data, cuda)
-                row = {'dataset':dataset, 'attack':model.__class__.__name__, 'seed':seed, 'acc':acc}
-                print(row)
-                df = df.append(row, ignore_index=True)
-    df.to_csv('reports/initial_eval.csv',index=False)
+            for perturbation_rate in [0.10,0.15,0.20]:
+                for seed in range(10):
+                    modified_adj = apply_perturbation(model, attack, data, perturbation_rate, cuda, seed)
+                    acc = test(modified_adj, data, cuda)
+                    row = {'dataset':dataset, 'attack':model.__class__.__name__, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate}
+                    print(row)
+                    df = df.append(row, ignore_index=True)
+    df.to_csv('reports/initial_eval-2.csv',index=False)
 
 if __name__ == '__main__':
     main()
