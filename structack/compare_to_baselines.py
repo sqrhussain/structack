@@ -91,7 +91,7 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
         torch.cuda.manual_seed(seed)
 
 
-    device = torch.device("cuda:0" if cuda else "cpu")
+    device = torch.device("cuda" if cuda else "cpu")
 
     adj, features, labels = data.adj, data.features, data.labels
     idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
@@ -123,7 +123,7 @@ def pre_test_data(data,device):
 
 def test(adj, data, cuda, data_prep,nhid=16):
     ''' test on GCN '''
-    device = torch.device("cuda:0" if cuda else "cpu")
+    device = torch.device("cuda" if cuda else "cpu")
     features, labels, idx_train, idx_val, idx_test = data_prep(data,device)
 
     gcn = GCN(nfeat=features.shape[1],
@@ -152,7 +152,7 @@ def main():
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
-            # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda:0" if cuda else "cpu"))
+            # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda" if cuda else "cpu"))
             # acc = test(adj, data, cuda, pre_test_data)
             # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             # print(row)
@@ -174,7 +174,7 @@ def main():
 
 attacks = [
     attack_random,
-    attack_dice,
+    # attack_dice,
     attack_structack2_greedy,
     attack_structack1,
     attack_structack2,
@@ -182,7 +182,7 @@ attacks = [
 ]
 model_names = [
     'Random',
-    'DICE',
+    # 'DICE',
     'StructackBothEndsGreedy',
     'StructackOneEnd',
     'StructackBothEnds',
@@ -190,7 +190,7 @@ model_names = [
 ]
 model_builders = [
     build_random,
-    build_dice,
+    # build_dice,
     build_structack2_greedy,
     build_structack1,
     build_structack2,

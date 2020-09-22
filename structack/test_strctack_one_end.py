@@ -7,6 +7,9 @@ from structack.structack import StructackOneEnd
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 import argparse
+import pandas as pd
+import os
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -22,8 +25,9 @@ parser.add_argument('--hidden', type=int, default=16,
                     help='Number of hidden units.')
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Dropout rate (1 - keep probability).')
-parser.add_argument('--dataset', type=str, default='citeseer', choices=['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed'], help='dataset')
-parser.add_argument('--ptb_rate', type=float, default=0.05,  help='pertubation rate')
+parser.add_argument('--dataset', type=str, nargs='+', default=['citeseer'],
+                    choices=['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed'], help='dataset')
+parser.add_argument('--ptb_rate', type=float, nargs='+', default=[0.05],  help='pertubation rate')
 parser.add_argument('--percentile_step', type=float, default=None, help='If None, [frm,to] is taken instead')
 parser.add_argument('--frm', type=float, default=0,help='Percentile from')
 parser.add_argument('--to', type=float, default=1,help='Percentile to')
@@ -37,18 +41,15 @@ torch.manual_seed(args.seed)
 if device != 'cpu':
     torch.cuda.manual_seed(args.seed)
 
-data = Dataset(root='/tmp/', name=args.dataset, setting='nettack')
-adj, features, labels = data.adj, data.features, data.labels
-idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
-idx_unlabeled = np.union1d(idx_val, idx_test)
-
-perturbations = int(args.ptb_rate * (adj.sum()//2))
-adj, features, labels = preprocess(adj, features, labels, preprocess_adj=False)
 
 
-
-def test(adj):
+def test(data,adj):
     ''' test on GCN '''
+
+    _, features, labels = data.adj, data.features, data.labels
+    idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
+    idx_unlabeled = np.union1d(idx_val, idx_test)
+    adj, features, labels = preprocess(adj, features, labels, preprocess_adj=False)
 
     # adj = normalize_adj_tensor(adj)
     gcn = GCN(nfeat=features.shape[1],
@@ -67,27 +68,46 @@ def test(adj):
 
     return acc_test.item()
 
-
 def main():
-    print('=== testing GCN on original(clean) graph ===')
-    test(adj)
-    if args.percentile_step is None:
-        model = Structack(degree_percentile_range=[args.frm,args.to])
-        model.attack(adj, perturbations)
-        modified_adj = model.modified_adj
-        # modified_features = model.modified_features
-        test(modified_adj)
-    else:
-        for frm in np.arange(0,1,args.percentile_step):
-            to = frm + args.percentile_step
-            model = Structack(degree_percentile_range=[args.frm,args.to])
-            accs = []
-            for i in range(100):
+    df_path = 'reports/eval/one_end-ptb.csv'
+    for dataset in args.dataset:
+        data = Dataset(root='/tmp/', name=dataset, setting='nettack')
+        print(f'Accuracy on the clean graph: {test(data,data.adj)}')
+        for ptb_rate in args.ptb_rate:
+            perturbations = int(ptb_rate * (data.adj.sum()//2))
+            if args.percentile_step is None:
+                model = StructackOneEnd(degree_percentile_range=[args.frm,args.to])
                 model.attack(adj, perturbations)
                 modified_adj = model.modified_adj
                 # modified_features = model.modified_features
-                accs.append(test(modified_adj))
-            print(f'percentile [{frm:.2f},{to:.2f}]: {np.mean(accs):.4f} +- {np.std(accs):.2f}')
+                test(data,modified_adj)
+            else:
+                for frm in np.arange(0,1,args.percentile_step):
+                    print(f'===={frm}====')
+                    to = frm + args.percentile_step
+                    model = StructackOneEnd(degree_percentile_range=[frm,to])
+                    accs = []
+                    for seed_i in range(10):
+                        tick = time.time()
+                        model.attack(data.adj, perturbations)
+                        elapsed = time.time()-tick
+
+                        modified_adj = model.modified_adj
+                        # modified_features = model.modified_features
+                        acc = test(data,modified_adj)
+                        accs.append(acc)
+
+                        cdf = pd.DataFrame()
+                        if os.path.exists(df_path):
+                            cdf = pd.read_csv(df_path)
+                        row = {'dataset':dataset, 'attack':model.__class__.__name__,
+                            'seed':seed_i, 'acc':acc, 'perturbation_rate':ptb_rate,'elapsed':elapsed,
+                            'frm':frm,'to':to}
+                        print(row)
+                        cdf = cdf.append(row, ignore_index=True)
+                        cdf.to_csv(df_path,index=False)
+
+                    print(f'percentile [{frm:.2f},{to:.2f}]: {np.mean(accs):.4f} +- {np.std(accs):.2f}')
 
     # # if you want to save the modified adj/features, uncomment the code below
     # model.save_adj(root='./', name=f'mod_adj')
