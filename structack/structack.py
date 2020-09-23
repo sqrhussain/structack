@@ -67,7 +67,7 @@ class StructackBothEnds(Structack):
         modified_adj = nx.to_scipy_sparse_matrix(graph)
         return modified_adj
 
-class StructackBothEndsGreedy(Structack):
+class StructackGreedyRandom(Structack):
     def __init__(self):
         super(StructackBothEndsGreedy, self).__init__()
         self.modified_adj = None
@@ -79,6 +79,29 @@ class StructackBothEndsGreedy(Structack):
         # select nodes
         nodes = self.get_nodes_with_lowest_degree(graph,2*n_perturbations)
         np.random.shuffle(nodes)
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = nodes[n_perturbations:]
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+
+
+
+class StructackGreedyFold(Structack):
+    def __init__(self):
+        super(StructackGreedyFold, self).__init__()
+        self.modified_adj = None
+
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+
+        # select nodes
+        nodes = self.get_nodes_with_lowest_degree(graph,2*n_perturbations)
 
         # perturb
         rows = nodes[:n_perturbations]

@@ -68,8 +68,8 @@ def pre_test_data_ogb(data,device):
     return features, labels, idx_train, idx_val, idx_test
 
 def main_ogb():
-    df_path = 'reports/initial_eval-ogb-products.csv'
-    datasets = 'ogbn-products'.split()
+    df_path = 'reports/initial_eval-ogb-mag.csv'
+    datasets = 'ogbn-mag'.split()
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = NodePropPredDataset(name = dataset)

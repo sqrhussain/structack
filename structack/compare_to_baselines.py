@@ -7,7 +7,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack
-from structack.structack import StructackOneEnd, StructackBothEnds, StructackBothEndsGreedy
+from structack.structack import StructackOneEnd, StructackBothEnds, StructackGreedyRandom, StructackGreedyFold
 import pandas as pd
 import time
 import os
@@ -43,6 +43,12 @@ def attack_structack2_greedy(model, adj, features, labels, n_perturbations, idx_
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
 
+def attack_structack_fold(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
     return model.modified_adj
@@ -61,7 +67,10 @@ def build_structack2(adj=None, features=None, labels=None, idx_train=None, devic
     return StructackBothEnds(degree_percentile_range=[0,.1,0,.1])
 
 def build_structack2_greedy(adj=None, features=None, labels=None, idx_train=None, device=None):
-    return StructackBothEndsGreedy()
+    return StructackGreedyRandom()
+
+def build_structack_fold(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackGreedyFold()
 
 def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=None):    
     lambda_ = 0
@@ -147,7 +156,7 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/initial_eval-2.csv'
+    df_path = 'reports/eval/eval-fold.csv'
     datasets = ['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
@@ -156,7 +165,6 @@ def main():
             # acc = test(adj, data, cuda, pre_test_data)
             # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             # print(row)
-            df = pd.DataFrame()
             # df = df.append(row, ignore_index=True)
             for perturbation_rate in [0.05,0.01,0.10,0.15,0.20]:
                 for seed in range(10):
@@ -164,36 +172,38 @@ def main():
                     acc = test(modified_adj, data, cuda, pre_test_data)
                     row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
                     print(row)
-                    df = df.append(row, ignore_index=True)
-            cdf = pd.DataFrame(columns=df.columns)
-            if os.path.exists(df_path):
-                cdf = pd.read_csv(df_path)
-            df = pd.concat([cdf,df])
-            df.to_csv(df_path,index=False)
+                    cdf = pd.DataFrame()
+                    if os.path.exists(df_path):
+                        cdf = pd.read_csv(df_path)
+                    cdf = cdf.append(row, ignore_index=True)
+                    cdf.to_csv(df_path,index=False)
 
 
 attacks = [
-    attack_random,
+    # attack_random,
     # attack_dice,
-    attack_structack2_greedy,
-    attack_structack1,
-    attack_structack2,
+    # attack_structack2_greedy,
+    # attack_structack1,
+    # attack_structack2,
+    attack_structack_fold,
     # attack_mettaack,
 ]
 model_names = [
-    'Random',
+    # 'Random',
     # 'DICE',
-    'StructackBothEndsGreedy',
-    'StructackOneEnd',
-    'StructackBothEnds',
+    # 'StructackGreedyRandom',
+    # 'StructackOneEnd',
+    # 'StructackBothEnds',
+    'StructackGreedyFold',
     # 'Metattack',
 ]
 model_builders = [
-    build_random,
+    # build_random,
     # build_dice,
-    build_structack2_greedy,
-    build_structack1,
-    build_structack2,
+    # build_structack2_greedy,
+    # build_structack1,
+    # build_structack2,
+    build_structack_fold,
     # build_mettack,
 ]
 cuda = torch.cuda.is_available()
