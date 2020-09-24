@@ -9,6 +9,7 @@ from tqdm import tqdm
 from deeprobust.graph import utils
 from deeprobust.graph.global_attack import BaseAttack
 import networkx as nx
+from scipy.optimize import linear_sum_assignment
 
 class Structack(BaseAttack):
     def __init__(self):
@@ -107,6 +108,37 @@ class StructackGreedyFold(Structack):
         rows = nodes[:n_perturbations]
         cols = nodes[n_perturbations:]
         edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+
+class StructackDistance(Structack):
+    def __init__(self):
+        super(StructackDistance, self).__init__()
+        self.modified_adj = None
+
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+
+        # select nodes
+        nodes = self.get_nodes_with_lowest_degree(graph,2*n_perturbations)
+
+        rows = nodes[:n_perturbations]
+        cols = nodes[n_perturbations:]
+
+        distance = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
+        distance = {u:{v:distance[u][v] for v in cols} for u in rows}
+
+        mtx = np.array([np.array(list(distance[u].values())) for u in distance])
+
+        i_u = {i:u for i,u in enumerate(distance)}
+        i_v = {i:v for i,v in enumerate(distance[list(distance.keys())[0]])}
+
+        u,v = linear_sum_assignment(-mtx)
+
+        edges = [[i_u[i],i_v[j]] for i,j in zip(u,v)]
         graph.add_edges_from(edges)
 
         modified_adj = nx.to_scipy_sparse_matrix(graph)

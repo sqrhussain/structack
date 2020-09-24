@@ -7,7 +7,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack
-from structack.structack import StructackOneEnd, StructackBothEnds, StructackGreedyRandom, StructackGreedyFold
+from structack.structack import StructackGreedyRandom, StructackGreedyFold, StructackDistance
 import pandas as pd
 import time
 import os
@@ -48,6 +48,11 @@ def attack_structack_fold(model, adj, features, labels, n_perturbations, idx_tra
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
 
+def attack_structack_distance(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
 
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
@@ -71,6 +76,9 @@ def build_structack2_greedy(adj=None, features=None, labels=None, idx_train=None
 
 def build_structack_fold(adj=None, features=None, labels=None, idx_train=None, device=None):
     return StructackGreedyFold()
+
+def build_structack_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackDistance()
 
 def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=None):    
     lambda_ = 0
@@ -108,6 +116,7 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
 
 
     n_perturbations = int(ptb_rate * (adj.sum()//2))
+    print(f'n_perturbations = {n_perturbations}')
 
     if model_builder == build_mettack:
         adj, features, labels = preprocess(adj, features, labels, preprocess_adj=False)
@@ -156,8 +165,9 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/eval/eval-fold.csv'
+    df_path = 'reports/eval/initial_eval.csv'
     datasets = ['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed']
+    # dataset = ['pubmed']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -166,7 +176,7 @@ def main():
             # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             # print(row)
             # df = df.append(row, ignore_index=True)
-            for perturbation_rate in [0.05,0.01,0.10,0.15,0.20]:
+            for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
                 for seed in range(10):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
                     acc = test(modified_adj, data, cuda, pre_test_data)
@@ -185,7 +195,8 @@ attacks = [
     # attack_structack2_greedy,
     # attack_structack1,
     # attack_structack2,
-    attack_structack_fold,
+    # attack_structack_fold,
+    attack_structack_distance,
     # attack_mettaack,
 ]
 model_names = [
@@ -194,7 +205,8 @@ model_names = [
     # 'StructackGreedyRandom',
     # 'StructackOneEnd',
     # 'StructackBothEnds',
-    'StructackGreedyFold',
+    # 'StructackGreedyFold',
+    'StructackDistance',
     # 'Metattack',
 ]
 model_builders = [
@@ -203,7 +215,8 @@ model_builders = [
     # build_structack2_greedy,
     # build_structack1,
     # build_structack2,
-    build_structack_fold,
+    # build_structack_fold,
+    build_structack_distance,
     # build_mettack,
 ]
 cuda = torch.cuda.is_available()
