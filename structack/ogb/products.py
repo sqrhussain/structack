@@ -6,6 +6,8 @@ import torch.nn.functional as F
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, SAGEConv
 
+from torch_sparse import SparseTensor
+
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
 # from logger import Logger
@@ -134,13 +136,14 @@ def main():
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--runs', type=int, default=10)
     parser.add_argument('--attack', default='clean')
-    parser.add_argument('--ptb_rate', type=float, default=0.01)
+    parser.add_argument('--ptb_rate', type=float, default=0.001)
     args = parser.parse_args()
     print(args)
 
     device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
+    dataset_name = 'ogbn-products'
     dataset = PygNodePropPredDataset(name='ogbn-products',
                                      transform=T.ToSparseTensor())
     data = dataset[0]
@@ -153,6 +156,8 @@ def main():
         attack_model = attacks[args.attack]
         adj = data.adj_t.to_torch_sparse_coo_tensor()
         adj = to_scipy(adj)
+        adj = (adj>0).astype(float)
+        print(adj.tocsr().max())
         n = adj.sum()//2
         print(n)
         n_perturbations = int(args.ptb_rate * (adj.sum()//2))
@@ -163,7 +168,8 @@ def main():
         elapsed = time.time() - tick
         modified_adj = attack_model.modified_adj
         data.adj_t = SparseTensor.from_torch_sparse_coo_tensor(sparse_mx_to_torch_sparse_tensor(modified_adj))
-
+    else:
+        elapsed = 0
 
     if args.use_sage:
         model = SAGE(data.num_features, args.hidden_channels,

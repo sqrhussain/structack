@@ -165,9 +165,9 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/eval/initial_eval.csv'
-    datasets = ['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed']
-    # dataset = ['pubmed']
+    df_path = 'reports/eval/initial_eval-citeseer.csv'
+    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
+    # datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -195,8 +195,8 @@ attacks = [
     # attack_structack2_greedy,
     # attack_structack1,
     # attack_structack2,
-    # attack_structack_fold,
-    attack_structack_distance,
+    attack_structack_fold,
+    # attack_structack_distance,
     # attack_mettaack,
 ]
 model_names = [
@@ -205,8 +205,8 @@ model_names = [
     # 'StructackGreedyRandom',
     # 'StructackOneEnd',
     # 'StructackBothEnds',
-    # 'StructackGreedyFold',
-    'StructackDistance',
+    'StructackGreedyFold',
+    # 'StructackDistanceMod',
     # 'Metattack',
 ]
 model_builders = [
@@ -215,8 +215,8 @@ model_builders = [
     # build_structack2_greedy,
     # build_structack1,
     # build_structack2,
-    # build_structack_fold,
-    build_structack_distance,
+    build_structack_fold,
+    # build_structack_distance,
     # build_mettack,
 ]
 cuda = torch.cuda.is_available()

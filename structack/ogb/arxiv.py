@@ -120,18 +120,21 @@ def test(model, data, split_idx, evaluator):
 
     return train_acc, valid_acc, test_acc
 
-attacks = {'random':Random(), 'sfold':StructackGreedyFold(), 'sdist':StructackDistance()}
+attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackGreedyFold(), 'sdist':StructackDistance()}
 model_names = {
     'clean':'Clean',
     'random' : 'Random',
-    # 'DICE',
+    'dice':'DICE',
     # 'StructackGreedyRandom',
     # 'StructackOneEnd',
     # 'StructackBothEnds',
     'sfold' : 'StructackGreedyFold',
     'sdist' : 'StructackDistance',
-    # 'Metattack',
+    'metattack' : 'Metattack',
 }
+
+basic_attacks = 'random sfold sdist'.split()
+
 
 def main():
     parser = argparse.ArgumentParser(description='OGBN-Arxiv (GNN)')
