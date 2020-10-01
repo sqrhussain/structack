@@ -7,7 +7,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack
-from structack.structack import StructackGreedyRandom, StructackGreedyFold, StructackDistance
+from structack.structack import StructackGreedyRandom, StructackGreedyFold, StructackDistance,StructackOnlyDistance
 import pandas as pd
 import time
 import os
@@ -53,6 +53,11 @@ def attack_structack_distance(model, adj, features, labels, n_perturbations, idx
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
 
+def attack_structack_only_distance(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+    
 
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
@@ -80,6 +85,9 @@ def build_structack_fold(adj=None, features=None, labels=None, idx_train=None, d
 def build_structack_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
     return StructackDistance()
 
+def build_structack_only_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackOnlyDistance()
+
 def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=None):    
     lambda_ = 0
     
@@ -93,6 +101,7 @@ def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=N
             attack_structure=True, attack_features=False, device=device, lambda_=lambda_)
     model = model.to(device)
     return model
+
 
 def build_pgd(adj=None, features=None, labels=None, idx_train=None, device=None):
     return PGDAttack(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
@@ -165,7 +174,7 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/eval/initial_eval-citeseer.csv'
+    df_path = 'reports/eval/initial_eval.csv'
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
     # datasets = ['citeseer']
     for dataset in datasets:
@@ -195,7 +204,8 @@ attacks = [
     # attack_structack2_greedy,
     # attack_structack1,
     # attack_structack2,
-    attack_structack_fold,
+    # attack_structack_fold,
+    attack_structack_only_distance,
     # attack_structack_distance,
     # attack_mettaack,
 ]
@@ -205,8 +215,9 @@ model_names = [
     # 'StructackGreedyRandom',
     # 'StructackOneEnd',
     # 'StructackBothEnds',
-    'StructackGreedyFold',
-    # 'StructackDistanceMod',
+    # 'StructackGreedyFold',
+    'StructackOnlyDistance',
+    # 'StructackDistance',
     # 'Metattack',
 ]
 model_builders = [
@@ -215,7 +226,8 @@ model_builders = [
     # build_structack2_greedy,
     # build_structack1,
     # build_structack2,
-    build_structack_fold,
+    # build_structack_fold,
+    build_structack_only_distance,
     # build_structack_distance,
     # build_mettack,
 ]

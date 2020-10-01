@@ -133,12 +133,14 @@ class StructackDistance(Structack):
         cols = nodes[n_perturbations:]
         print(f'{self.__class__.__name__}: obtained nodes in {time.time()-tick}')
 
-
         tick = time.time()
         dgl_graph = dgl.from_networkx(graph)
         e0 = [e[0] for e in graph.edges()]
         e1 = [e[1] for e in graph.edges()]
         dgl_graph.add_edges(e1,e0)
+        bfs_nodes_generator(dgl_graph,rows[0])
+        print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')
+        tick = time.time()
         bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
         distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
         distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
@@ -183,15 +185,18 @@ class StructackOnlyDistance(Structack):
 
 
         tick = time.time()
-        # dgl_graph = dgl.from_networkx(graph)
-        # e0 = [e[0] for e in graph.edges()]
-        # e1 = [e[1] for e in graph.edges()]
-        # dgl_graph.add_edges(e1,e0)
-        # bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
-        # distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
-        # distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
-        distance = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
-        distance = {u:{v:distance[u][v] for v in cols} for u in rows}
+        dgl_graph = dgl.from_networkx(graph)
+        e0 = [e[0] for e in graph.edges()]
+        e1 = [e[1] for e in graph.edges()]
+        dgl_graph.add_edges(e1,e0)
+        bfs_nodes_generator(dgl_graph,rows[0])
+        print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')
+        tick = time.time()
+        bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
+        distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
+        distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
+        # distance = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
+        # distance = {u:{v:distance[u][v] for v in cols} for u in rows}
         print(f'{self.__class__.__name__}: computed distance in {time.time()-tick}')
 
         tick = time.time()
@@ -211,3 +216,47 @@ class StructackOnlyDistance(Structack):
         modified_adj = nx.to_scipy_sparse_matrix(graph)
         return modified_adj
 
+
+class StructackRangeDistance(Structack):
+    def __init__(self, distance_percentile_range=[0,1]):
+        super(StructackRangeDistance, self).__init__()
+        self.frm, self.to = distance_percentile_range
+        self.modified_adj = None
+
+
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.DiGraph)
+        n = adj.shape[0]
+        tick = time.time()
+        # select nodes
+        rows = np.random.choice(graph.nodes(), size=n_perturbations, replace=(len(graph.nodes())<2*n_perturbations))
+
+        print(f'{self.__class__.__name__}: obtained nodes in {time.time()-tick}')
+
+
+        tick = time.time()
+        distance = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
+
+        frm = int(self.frm*n)
+        to = int(self.to*n)
+        distance = {u:sorted(distance[u].items(),key=lambda x:x[1])[frm:to] for u in distance}
+        idx = {u:np.random.choice(len(distance[u])) for u in distance}
+        print(f'{self.__class__.__name__}: computed distance in {time.time()-tick}')
+
+        tick = time.time()
+        edges = [[u,distance[u][idx[u]][0]] for u in distance]
+        distance = [distance[u][idx[u]][1] for u in distance]
+        # print(distance)
+        # print(edges)
+        # exit(0)
+        graph.add_edges_from(edges)
+        print(f'{self.__class__.__name__}: added edges in {time.time()-tick}')
+
+        # print(distance)
+        # print(edges)
+        # exit(0)
+        self.mean_distance = np.mean(distance)
+        print(f'mean distance = {self.mean_distance:.2f}')
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
