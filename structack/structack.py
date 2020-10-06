@@ -13,6 +13,7 @@ from scipy.optimize import linear_sum_assignment
 import time
 import dgl
 from dgl.traversal import bfs_nodes_generator
+from structack.bfs import bfs
 
 class Structack(BaseAttack):
     def __init__(self):
@@ -137,15 +138,16 @@ class StructackDistance(Structack):
         dgl_graph = dgl.from_networkx(graph)
         e0 = [e[0] for e in graph.edges()]
         e1 = [e[1] for e in graph.edges()]
-        dgl_graph.add_edges(e1,e0)
-        bfs_nodes_generator(dgl_graph,rows[0])
-        print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')
-        tick = time.time()
-        bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
-        distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
-        distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
-        # distance = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
-        # distance = {u:{v:distance[u][v] for v in cols} for u in rows}
+        # dgl_graph.add_edges(e1,e0)
+        # bfs_nodes_generator(dgl_graph,rows[0])
+        # print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')
+        # tick = time.time()
+        # bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
+        # distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
+        # distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
+
+        distance = bfs(graph, rows) # = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
+        distance = {u:{v:distance[u][v] for v in cols} for u in rows}
         print(f'{self.__class__.__name__}: computed distance in {time.time()-tick}')
 
         tick = time.time()

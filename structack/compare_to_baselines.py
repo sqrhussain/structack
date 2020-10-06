@@ -57,7 +57,7 @@ def attack_structack_only_distance(model, adj, features, labels, n_perturbations
     model.attack(adj, n_perturbations)
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
-    
+
 
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
@@ -174,9 +174,9 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/eval/initial_eval.csv'
+    df_path = 'reports/eval/initial_eval-tmp.csv'
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    # datasets = ['citeseer']
+    datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -205,8 +205,8 @@ attacks = [
     # attack_structack1,
     # attack_structack2,
     # attack_structack_fold,
-    attack_structack_only_distance,
-    # attack_structack_distance,
+    # attack_structack_only_distance,
+    attack_structack_distance,
     # attack_mettaack,
 ]
 model_names = [
@@ -216,8 +216,8 @@ model_names = [
     # 'StructackOneEnd',
     # 'StructackBothEnds',
     # 'StructackGreedyFold',
-    'StructackOnlyDistance',
-    # 'StructackDistance',
+    # 'StructackOnlyDistance',
+    'StructackDistance',
     # 'Metattack',
 ]
 model_builders = [
@@ -227,8 +227,8 @@ model_builders = [
     # build_structack1,
     # build_structack2,
     # build_structack_fold,
-    build_structack_only_distance,
-    # build_structack_distance,
+    # build_structack_only_distance,
+    build_structack_distance,
     # build_mettack,
 ]
 cuda = torch.cuda.is_available()

@@ -21,37 +21,34 @@ import os
 
 import pandas as pd
 
+
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
                  dropout):
         super(GCN, self).__init__()
 
         self.convs = torch.nn.ModuleList()
-        self.convs.append(GCNConv(in_channels, hidden_channels, cached=True))
-        self.bns = torch.nn.ModuleList()
-        self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.convs.append(
+            GCNConv(in_channels, hidden_channels, normalize=False))
         for _ in range(num_layers - 2):
             self.convs.append(
-                GCNConv(hidden_channels, hidden_channels, cached=True))
-            self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
-        self.convs.append(GCNConv(hidden_channels, out_channels, cached=True))
+                GCNConv(hidden_channels, hidden_channels, normalize=False))
+        self.convs.append(
+            GCNConv(hidden_channels, out_channels, normalize=False))
 
         self.dropout = dropout
 
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
-        for bn in self.bns:
-            bn.reset_parameters()
 
     def forward(self, x, adj_t):
-        for i, conv in enumerate(self.convs[:-1]):
+        for conv in self.convs[:-1]:
             x = conv(x, adj_t)
-            x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
-        return x.log_softmax(dim=-1)
+        return x
 
 
 class SAGE(torch.nn.Module):
@@ -61,11 +58,8 @@ class SAGE(torch.nn.Module):
 
         self.convs = torch.nn.ModuleList()
         self.convs.append(SAGEConv(in_channels, hidden_channels))
-        self.bns = torch.nn.ModuleList()
-        self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
         for _ in range(num_layers - 2):
             self.convs.append(SAGEConv(hidden_channels, hidden_channels))
-            self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
         self.convs.append(SAGEConv(hidden_channels, out_channels))
 
         self.dropout = dropout
@@ -73,25 +67,23 @@ class SAGE(torch.nn.Module):
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
-        for bn in self.bns:
-            bn.reset_parameters()
 
     def forward(self, x, adj_t):
-        for i, conv in enumerate(self.convs[:-1]):
+        for conv in self.convs[:-1]:
             x = conv(x, adj_t)
-            x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
-        return x.log_softmax(dim=-1)
+        return x
 
 
 def train(model, data, train_idx, optimizer):
     model.train()
+    criterion = torch.nn.BCEWithLogitsLoss()
 
     optimizer.zero_grad()
     out = model(data.x, data.adj_t)[train_idx]
-    loss = F.nll_loss(out, data.y.squeeze(1)[train_idx])
+    loss = criterion(out, data.y[train_idx].to(torch.float))
     loss.backward()
     optimizer.step()
 
@@ -102,23 +94,23 @@ def train(model, data, train_idx, optimizer):
 def test(model, data, split_idx, evaluator):
     model.eval()
 
-    out = model(data.x, data.adj_t)
-    y_pred = out.argmax(dim=-1, keepdim=True)
+    y_pred = model(data.x, data.adj_t)
 
-    train_acc = evaluator.eval({
+    train_rocauc = evaluator.eval({
         'y_true': data.y[split_idx['train']],
         'y_pred': y_pred[split_idx['train']],
-    })['acc']
-    valid_acc = evaluator.eval({
+    })['rocauc']
+    valid_rocauc = evaluator.eval({
         'y_true': data.y[split_idx['valid']],
         'y_pred': y_pred[split_idx['valid']],
-    })['acc']
-    test_acc = evaluator.eval({
+    })['rocauc']
+    test_rocauc = evaluator.eval({
         'y_true': data.y[split_idx['test']],
         'y_pred': y_pred[split_idx['test']],
-    })['acc']
+    })['rocauc']
 
-    return train_acc, valid_acc, test_acc
+    return train_rocauc, valid_rocauc, test_rocauc
+
 
 attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackGreedyFold(), 'sdist':StructackDistance()}
 model_names = {
@@ -135,37 +127,17 @@ model_names = {
 
 basic_attacks = 'random sfold sdist'.split()
 
-
-def attack_dice(model, adj, labels, n_perturbations):
-    model.attack(adj, labels, n_perturbations)
-    modified_adj = model.modified_adj
-    return postprocess_adj(modified_adj)
-
-def attack_random(model, adj, labels, n_perturbations):
-    model.attack(adj, n_perturbations)
-    modified_adj = model.modified_adj
-    return modified_adj
-
-def attack_structack_fold(model, adj, labels, n_perturbations):
-    model.attack(adj, n_perturbations)
-    modified_adj = model.modified_adj
-    return modified_adj
-
-def attack_structack_distance(model, adj, labels, n_perturbations):
-    model.attack(adj, n_perturbations)
-    modified_adj = model.modified_adj
-    return modified_adj
-
 def main():
-    parser = argparse.ArgumentParser(description='OGBN-Arxiv (GNN)')
+    parser = argparse.ArgumentParser(description='OGBN-Proteins (GNN)')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--log_steps', type=int, default=1)
     parser.add_argument('--use_sage', action='store_true')
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--hidden_channels', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.5)
+    parser.add_argument('--dropout', type=float, default=0.0)
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--epochs', type=int, default=500)
+    parser.add_argument('--epochs', type=int, default=1000)
+    parser.add_argument('--eval_steps', type=int, default=5)
     parser.add_argument('--runs', type=int, default=10)
     parser.add_argument('--attack', default='clean')
     parser.add_argument('--ptb_rate', type=float, default=0.01)
@@ -175,18 +147,17 @@ def main():
     device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
-    dataset_name = 'ogbn-arxiv'
-    dataset = PygNodePropPredDataset(name='ogbn-arxiv',
+    dataset_name = 'ogbn-proteins'
+    dataset = PygNodePropPredDataset(name='ogbn-proteins',
                                      transform=T.ToSparseTensor())
-
     data = dataset[0]
-    data.adj_t = data.adj_t.to_symmetric()
+
 
     if args.attack!='clean':
-        # print(data)
         print(data.adj_t)
         attack_model = attacks[args.attack]
         adj = data.adj_t.to_torch_sparse_coo_tensor()
+        print(adj.shape)
         adj = to_scipy(adj)
         n = adj.sum()//2
         print(n)
@@ -194,31 +165,38 @@ def main():
         print(f'n_perturbations = {n_perturbations}')
         
         tick = time.time()
-        if args.attack=='dice':
-            attack_model.attack(adj, data.y.numpy(), n_perturbations)
-        else:
-            attack_model.attack(adj, n_perturbations)
-        modified_adj = attack_model.modified_adj
+        attack_model.attack(adj, n_perturbations)
         elapsed = time.time() - tick
+        modified_adj = attack_model.modified_adj
         data.adj_t = SparseTensor.from_torch_sparse_coo_tensor(sparse_mx_to_torch_sparse_tensor(modified_adj))
     else:
         elapsed = 0
 
-    data = data.to(device)
+    # Move edge features to node features.
+    data.x = data.adj_t.mean(dim=1)
+    data.adj_t.set_value_(None)
 
     split_idx = dataset.get_idx_split()
     train_idx = split_idx['train'].to(device)
 
     if args.use_sage:
-        model = SAGE(data.num_features, args.hidden_channels,
-                     dataset.num_classes, args.num_layers,
-                     args.dropout).to(device)
+        model = SAGE(data.num_features, args.hidden_channels, 112,
+                     args.num_layers, args.dropout).to(device)
     else:
-        model = GCN(data.num_features, args.hidden_channels,
-                    dataset.num_classes, args.num_layers,
-                    args.dropout).to(device)
+        model = GCN(data.num_features, args.hidden_channels, 112,
+                    args.num_layers, args.dropout).to(device)
 
-    evaluator = Evaluator(name='ogbn-arxiv')
+        # Pre-compute GCN normalization.
+        adj_t = data.adj_t.set_diag()
+        deg = adj_t.sum(dim=1).to(torch.float)
+        deg_inv_sqrt = deg.pow(-0.5)
+        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+        adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
+        data.adj_t = adj_t
+
+    data = data.to(device)
+
+    evaluator = Evaluator(name='ogbn-proteins')
     # logger = Logger(args.runs, args)
 
     df_path = 'reports/eval/ogb.csv'
@@ -228,18 +206,20 @@ def main():
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         for epoch in range(1, 1 + args.epochs):
             loss = train(model, data, train_idx, optimizer)
-            result = test(model, data, split_idx, evaluator)
-            # logger.add_result(run, result)
 
-            if epoch % args.log_steps == 0:
-                train_acc, valid_acc, test_acc = result
-                print(f'Run: {run + 1:02d}, '
-                      f'Epoch: {epoch:02d}, '
-                      f'Loss: {loss:.4f}, '
-                      f'Train: {100 * train_acc:.2f}%, '
-                      f'Valid: {100 * valid_acc:.2f}% '
-                      f'Test: {100 * test_acc:.2f}%')
-        row = {'dataset':dataset_name, 'attack':model_names[args.attack], 'seed':run, 'acc':test_acc, 'perturbation_rate':args.ptb_rate,'elapsed':elapsed}
+            if epoch % args.eval_steps == 0:
+                result = test(model, data, split_idx, evaluator)
+                # logger.add_result(run, result)
+
+                if epoch % args.log_steps == 0:
+                    train_rocauc, valid_rocauc, test_rocauc = result
+                    print(f'Run: {run + 1:02d}, '
+                          f'Epoch: {epoch:02d}, '
+                          f'Loss: {loss:.4f}, '
+                          f'Train: {100 * train_rocauc:.2f}%, '
+                          f'Valid: {100 * valid_rocauc:.2f}% '
+                          f'Test: {100 * test_rocauc:.2f}%')
+        row = {'dataset':dataset_name, 'attack':model_names[args.attack], 'seed':run, 'acc':test_rocauc, 'perturbation_rate':args.ptb_rate,'elapsed':elapsed}
         print(row)
         cdf = pd.DataFrame()
         if os.path.exists(df_path):

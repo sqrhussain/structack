@@ -111,11 +111,11 @@ def test(model, data, split_idx, evaluator):
     return train_acc, valid_acc, test_acc
 
 
-attacks = {'random':Random(), 'sfold':StructackGreedyFold(), 'sdist':StructackDistance()}
+attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackGreedyFold(), 'sdist':StructackDistance()}
 model_names = {
     'clean':'Clean',
     'random' : 'Random',
-    # 'DICE',
+    'dice':'DICE',
     # 'StructackGreedyRandom',
     # 'StructackOneEnd',
     # 'StructackBothEnds',
@@ -164,7 +164,10 @@ def main():
         print(f'n_perturbations = {n_perturbations}')
         
         tick = time.time()
-        attack_model.attack(adj, n_perturbations)
+        if args.attack=='dice':
+            attack_model.attack(adj, data.y.numpy(), n_perturbations)
+        else:
+            attack_model.attack(adj, n_perturbations)
         elapsed = time.time() - tick
         modified_adj = attack_model.modified_adj
         data.adj_t = SparseTensor.from_torch_sparse_coo_tensor(sparse_mx_to_torch_sparse_tensor(modified_adj))
