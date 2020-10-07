@@ -198,13 +198,11 @@ def main():
                     cdf.to_csv(df_path,index=False)
 
 
+# The following lists should be correspondent
 attacks = [
     # attack_random,
     # attack_dice,
-    # attack_structack2_greedy,
-    # attack_structack1,
-    # attack_structack2,
-    # attack_structack_fold,
+    # attack_structack_fold, 
     # attack_structack_only_distance,
     attack_structack_distance,
     # attack_mettaack,
@@ -212,20 +210,14 @@ attacks = [
 model_names = [
     # 'Random',
     # 'DICE',
-    # 'StructackGreedyRandom',
-    # 'StructackOneEnd',
-    # 'StructackBothEnds',
-    # 'StructackGreedyFold',
-    # 'StructackOnlyDistance',
-    'StructackDistance',
+    # 'StructackGreedyFold', # this is StructackDegree in the paper
+    # 'StructackOnlyDistance', # this is StructackDistance in the paper
+    'StructackDistance', # this is Structack in the paper
     # 'Metattack',
 ]
 model_builders = [
     # build_random,
     # build_dice,
-    # build_structack2_greedy,
-    # build_structack1,
-    # build_structack2,
     # build_structack_fold,
     # build_structack_only_distance,
     build_structack_distance,
