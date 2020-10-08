@@ -14,8 +14,6 @@ import os
 
 
 def postprocess_adj(adj):
-    adj = normalize_adj(adj)
-    adj = sparse_mx_to_torch_sparse_tensor(adj)
     return adj
 
 def attack_dice(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
@@ -61,7 +59,7 @@ def attack_structack_only_distance(model, adj, features, labels, n_perturbations
 
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
-    return model.modified_adj
+    return to_scipy(model.modified_adj)
 
 
 def build_random(adj=None, features=None, labels=None, idx_train=None, device=None):
@@ -138,7 +136,6 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
     modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
     elapsed = time.time() - tick
 
-    modified_adj = modified_adj.to(device)
     return modified_adj, elapsed
 
 def pre_test_data(data,device):
@@ -171,25 +168,97 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
     return acc_test.item()
 
+def compute_alpha(n, S_d, d_min=2):
+    """
+    Approximate the alpha of a power law distribution.
+    Parameters
+    ----------
+    n: int or np.array of int
+        Number of entries that are larger than or equal to d_min
+    S_d: float or np.array of float
+         Sum of log degrees in the distribution that are larger than or equal to d_min
+    d_min: int
+        The minimum degree of nodes to consider
+    Returns
+    -------
+    alpha: float
+        The estimated alpha of the power law distribution
+    """
+
+    return n / (S_d - n * np.log(d_min - 0.5)) + 1
+
+def compute_log_likelihood(n, alpha, S_d, d_min=2):
+    """
+    Compute log likelihood of the powerlaw fit.
+    Parameters
+    ----------
+    n: int
+        Number of entries in the old distribution that are larger than or equal to d_min.
+    alpha: float
+        The estimated alpha of the power law distribution
+    S_d: float
+         Sum of log degrees in the distribution that are larger than or equal to d_min.
+    d_min: int
+        The minimum degree of nodes to consider
+    Returns
+    -------
+    float: the estimated log likelihood
+    """
+
+    return n * np.log(alpha) + n * alpha * np.log(d_min) + (alpha + 1) * S_d
+
+def filter_chisquare(ll_ratios, delta_cutoff=0.004):
+    return ll_ratios < delta_cutoff
+
+def is_degree_unnoticeable(adj_orig, adj_new, d_min=2):
+
+
+    degrees_orig = np.asarray(adj_orig.sum(axis=1)).reshape(-1)
+    degrees_new = np.asarray(adj_new.sum(axis=1)).reshape(-1)
+
+    log_degree_sum_orig = np.sum(np.log(degrees_orig[degrees_orig >= d_min]))
+    log_degree_sum_new = np.sum(np.log(degrees_new[degrees_new >= d_min]))
+
+    n_orig = np.sum(degrees_orig >= d_min)
+    n_new = np.sum(degrees_new >= d_min)
+
+    alpha_orig = compute_alpha(n_orig, log_degree_sum_orig, d_min)
+    alpha_new = compute_alpha(n_new, log_degree_sum_new, d_min)
+
+    log_likelihood_orig = compute_log_likelihood(n_orig, alpha_orig, log_degree_sum_orig, d_min)
+    log_likelihood_new = compute_log_likelihood(n_new, alpha_new, log_degree_sum_new, d_min)
+
+    alpha_combined = compute_alpha(n_orig + n_new, log_degree_sum_orig + log_degree_sum_new, d_min)
+    ll_combined = compute_log_likelihood(n_orig + n_new, alpha_combined, log_degree_sum_orig + log_degree_sum_new, d_min)
+
+    ll_ratios = -2 * ll_combined + 2 * (log_likelihood_orig + log_likelihood_new)
+    
+    return filter_chisquare(ll_ratios)
 
 
 def main():
-    df_path = 'reports/eval/initial_eval-tmp.csv'
+    df_path = 'reports/eval/degre_noticeability.csv'
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
     datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
+            
+            # uncomment this?
             # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda" if cuda else "cpu"))
             # acc = test(adj, data, cuda, pre_test_data)
             # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             # print(row)
             # df = df.append(row, ignore_index=True)
             for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
-                for seed in range(10):
+                for seed in range(1):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
-                    acc = test(modified_adj, data, cuda, pre_test_data)
-                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
+                    
+                    # need the original adjacency matrix to calculate this
+                    degre_noticeability = is_degree_unnoticeable(data.adj, modified_adj)
+                    
+                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed,
+                        'is_degree_unnoticeable':degre_noticeability}
                     print(row)
                     cdf = pd.DataFrame()
                     if os.path.exists(df_path):
@@ -200,28 +269,28 @@ def main():
 
 # The following lists should be correspondent
 attacks = [
-    # attack_random,
-    # attack_dice,
+    attack_random,
+    attack_dice,
     # attack_structack_fold, 
     # attack_structack_only_distance,
     attack_structack_distance,
-    # attack_mettaack,
+    attack_mettaack,
 ]
 model_names = [
-    # 'Random',
-    # 'DICE',
+    'Random',
+    'DICE',
     # 'StructackGreedyFold', # this is StructackDegree in the paper
     # 'StructackOnlyDistance', # this is StructackDistance in the paper
     'StructackDistance', # this is Structack in the paper
-    # 'Metattack',
+    'Metattack',
 ]
 model_builders = [
-    # build_random,
-    # build_dice,
+    build_random,
+    build_dice,
     # build_structack_fold,
     # build_structack_only_distance,
     build_structack_distance,
-    # build_mettack,
+    build_mettack,
 ]
 cuda = torch.cuda.is_available()
 
