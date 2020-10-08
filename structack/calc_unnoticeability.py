@@ -274,7 +274,7 @@ def main():
                     row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed,
                            'is_degree_unnoticeable':degre_noticeability, 'alpha_original':alpha_orig, 'alpha_modified':alpha_new, 'final_test_statistic':ll_ratios,
                            'mean_clustering_coef_orig':np.mean(ccoefs_orig), 'mean_clustering_coef_modified':np.mean(ccoefs_modified), 
-                           'clustering_coefs_difference_significant':is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference}
+                           'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference}
                     print(row)
                     cdf = pd.DataFrame()
                     if os.path.exists(df_path):
