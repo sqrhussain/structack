@@ -239,7 +239,7 @@ def is_degree_unnoticeable(adj_orig, adj_new, d_min=2):
 def main():
     df_path = 'reports/eval/degre_noticeability.csv'
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    datasets = ['citeseer']
+    # datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -251,7 +251,7 @@ def main():
             # print(row)
             # df = df.append(row, ignore_index=True)
             for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
-                for seed in range(1):
+                for seed in range(10):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
                     
                     # need the original adjacency matrix to calculate this
