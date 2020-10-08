@@ -171,6 +171,70 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
     return acc_test.item()
 
+def compute_alpha(n, S_d, d_min=2):
+    """
+    Approximate the alpha of a power law distribution.
+    Parameters
+    ----------
+    n: int or np.array of int
+        Number of entries that are larger than or equal to d_min
+    S_d: float or np.array of float
+         Sum of log degrees in the distribution that are larger than or equal to d_min
+    d_min: int
+        The minimum degree of nodes to consider
+    Returns
+    -------
+    alpha: float
+        The estimated alpha of the power law distribution
+    """
+
+    return n / (S_d - n * np.log(d_min - 0.5)) + 1
+
+def compute_log_likelihood(n, alpha, S_d, d_min=2):
+    """
+    Compute log likelihood of the powerlaw fit.
+    Parameters
+    ----------
+    n: int
+        Number of entries in the old distribution that are larger than or equal to d_min.
+    alpha: float
+        The estimated alpha of the power law distribution
+    S_d: float
+         Sum of log degrees in the distribution that are larger than or equal to d_min.
+    d_min: int
+        The minimum degree of nodes to consider
+    Returns
+    -------
+    float: the estimated log likelihood
+    """
+
+    return n * np.log(alpha) + n * alpha * np.log(d_min) + (alpha + 1) * S_d
+
+def filter_chisquare(ll_ratios, delta_cutoff=0.004):
+    return ll_ratios < delta_cutoff
+
+def is_degree_unnoticeable(adj_orig, adj_new, d_min=2):
+    degrees_orig = np.asarray(np.sum(adj_orig, axis=1)).reshape(-1)
+    degrees_new = np.asarray(np.sum(adj_new, axis=1)).reshape(-1)
+
+    log_degree_sum_orig = np.sum(np.log(degrees_orig[degrees_orig >= d_min]))
+    log_degree_sum_new = np.sum(np.log(degrees_new[degrees_new >= d_min]))
+
+    n_orig = np.sum(degrees_orig >= d_min)
+    n_new = np.sum(degrees_new >= d_min)
+
+    alpha_orig = compute_alpha(n_orig, log_degree_sum_orig, d_min)
+    alpha_new = compute_alpha(n_new, log_degree_sum_new, d_min)
+
+    log_likelihood_orig = compute_log_likelihood(n_orig, alpha_orig, log_degree_sum_orig, d_min)
+    log_likelihood_new = compute_log_likelihood(n_new, alpha_new, log_degree_sum_new, d_min)
+
+    alpha_combined = compute_alpha(n_orig + n_new, log_degree_sum_orig + log_degree_sum_new, d_min)
+    ll_combined = compute_log_likelihood(n_orig + n_new, alpha_combined, log_degree_sum_orig + log_degree_sum_new, d_min)
+
+    ll_ratios = -2 * ll_combined + 2 * (log_likelihood_orig + log_likelihood_new)
+    
+    return filter_chisquare(ll_ratios)
 
 
 def main():
@@ -180,6 +244,8 @@ def main():
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
+            
+            # uncomment this?
             # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda" if cuda else "cpu"))
             # acc = test(adj, data, cuda, pre_test_data)
             # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
@@ -189,7 +255,11 @@ def main():
                 for seed in range(10):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
                     acc = test(modified_adj, data, cuda, pre_test_data)
-                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
+                    
+                    # need the original adjacency matrix to calculate this
+                    is_degree_unnoticeable = is_degree_unnoticeable(adj, modified_adj)
+                    
+                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'is_degree_unnoticeable':is_degree_unnoticeable}
                     print(row)
                     cdf = pd.DataFrame()
                     if os.path.exists(df_path):
