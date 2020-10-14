@@ -133,35 +133,35 @@ def defend(perturbed_adj, data, data_prep=pre_test_data, nhid=16):
 
 # The following lists should be correspondent
 attacks = [
-    attack_random,
+    # attack_random,
     attack_dice,
     # attack_structack_fold, 
     # attack_structack_only_distance,
-    attack_structack_distance,
-    attack_mettaack,
+    # attack_structack_distance,
+    # attack_mettaack,
 ]
 model_names = [
-    'Random',
+    # 'Random',
     'DICE',
     # 'StructackGreedyFold', # this is StructackDegree in the paper
     # 'StructackOnlyDistance', # this is StructackDistance in the paper
-    'StructackDistance', # this is Structack in the paper
-    'Metattack',
+    # 'StructackDistance', # this is Structack in the paper
+    # 'Metattack',
 ]
 model_builders = [
-    build_random,
+    # build_random,
     build_dice,
     # build_structack_fold,
     # build_structack_only_distance,
-    build_structack_distance,
-    build_mettack,
+    # build_structack_distance,
+    # build_mettack,
 ]
 
 
 def main():
     df_path = 'reports/eval/defense.csv'
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    datasets = ['citeseer']
+    datasets = ['cora_ml', 'polblogs', 'pubmed', 'citeseer', 'cora',]
+    # datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -174,7 +174,11 @@ def main():
                 print(f'{dataset} {model_name} {perturbation_rate}')
                 for seed in range(10):
                     perturbed_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
-                    acc = defend(perturbed_adj, data)
+                    try:
+                        acc = defend(perturbed_adj, data)
+                    except RuntimeError as err:
+                        print(err)
+                        continue
                     row = {'dataset':dataset, 'attack':model_name, 'defense': args.defense, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
                     print(row)
                     cdf = pd.DataFrame()

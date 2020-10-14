@@ -11,8 +11,7 @@ from deeprobust.graph.global_attack import BaseAttack
 import networkx as nx
 from scipy.optimize import linear_sum_assignment
 import time
-import dgl
-from dgl.traversal import bfs_nodes_generator
+# from dgl.traversal import bfs_nodes_generator
 from structack.bfs import bfs
 
 class Structack(BaseAttack):
@@ -135,9 +134,9 @@ class StructackDistance(Structack):
         print(f'{self.__class__.__name__}: obtained nodes in {time.time()-tick}')
 
         tick = time.time()
-        dgl_graph = dgl.from_networkx(graph)
-        e0 = [e[0] for e in graph.edges()]
-        e1 = [e[1] for e in graph.edges()]
+        # dgl_graph = dgl.from_networkx(graph)
+        # e0 = [e[0] for e in graph.edges()]
+        # e1 = [e[1] for e in graph.edges()]
         # dgl_graph.add_edges(e1,e0)
         # bfs_nodes_generator(dgl_graph,rows[0])
         # print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')

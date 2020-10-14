@@ -94,7 +94,31 @@ def main_ogb():
             df = pd.concat([cdf,df])
             df.to_csv(df_path,index=False)
 
-
+# The following lists should be correspondent
+attacks = [
+    # attack_random,
+    # attack_dice,
+    # attack_structack_fold, 
+    # attack_structack_only_distance,
+    attack_structack_distance,
+    # attack_mettaack,
+]
+model_names = [
+    # 'Random',
+    # 'DICE',
+    # 'StructackGreedyFold', # this is StructackDegree in the paper
+    # 'StructackOnlyDistance', # this is StructackDistance in the paper
+    'StructackDistance', # this is Structack in the paper
+    # 'Metattack',
+]
+model_builders = [
+    # build_random,
+    # build_dice,
+    # build_structack_fold,
+    # build_structack_only_distance,
+    build_structack_distance,
+    # build_mettack,
+]
 
 if __name__ == '__main__':
     main_ogb()

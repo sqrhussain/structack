@@ -35,13 +35,11 @@ def graph_from_nx(graph):
     return g
 
 
-def bfs_one_source(graph, source):
-    g = graph_from_nx(graph)
+def bfs_one_source(g, source):
     dist = g.new_vertex_property("int")
     bfs_search(g, g.vertex(source), SimpleVisitor(dist))
-    print(dist.a)
-    exit(1)
-    return dist.a
+    # print(dist.a)
+    return {i:x for i,x in enumerate(dist.a)}
 
 
 def bfs(graph, sources):
@@ -64,5 +62,10 @@ def bfs(graph, sources):
 
     # return eval(output)
 
-    return {u:bfs_one_source(graph, u) for u in sources}
+    g = graph_from_nx(graph)
+    ret = {}
+    for u in sources:
+        ret[u]  =bfs_one_source(g, u)
+    return ret
+    # return {u:bfs_one_source(g, u) for u in sources}
 
