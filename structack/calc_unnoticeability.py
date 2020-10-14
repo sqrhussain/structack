@@ -11,6 +11,8 @@ from structack.structack import StructackGreedyRandom, StructackGreedyFold, Stru
 import pandas as pd
 import time
 import os
+from scipy.stats import wilcoxon
+import networkx as nx
 
 
 def postprocess_adj(adj):
@@ -233,32 +235,46 @@ def is_degree_unnoticeable(adj_orig, adj_new, d_min=2):
 
     ll_ratios = -2 * ll_combined + 2 * (log_likelihood_orig + log_likelihood_new)
     
-    return filter_chisquare(ll_ratios)
+    return filter_chisquare(ll_ratios), alpha_orig, alpha_new, ll_ratios
+
+def is_difference_significant(p_value, threshold=0.05):
+    if p_value is None:
+        return False
+    else:
+        return p_value < threshold
 
 
 def main():
     df_path = 'reports/eval/degre_noticeability.csv'
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    # datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
             
-            # uncomment this?
             # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda" if cuda else "cpu"))
             # acc = test(adj, data, cuda, pre_test_data)
             # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
             # print(row)
             # df = df.append(row, ignore_index=True)
+            
+            G_orig = nx.from_scipy_sparse_matrix(data.adj)
+            ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
+            
             for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
-                for seed in range(10):
+                for seed in range(5):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
-                    
-                    # need the original adjacency matrix to calculate this
-                    degre_noticeability = is_degree_unnoticeable(data.adj, modified_adj)
-                    
+                    degre_noticeability, alpha_orig, alpha_new, ll_ratios = is_degree_unnoticeable(data.adj, modified_adj)
+                    G_modified = nx.from_scipy_sparse_matrix(modified_adj)
+                    ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
+                    try:
+                        _, p_value_ccoefs_difference = wilcoxon(ccoefs_orig - ccoefs_modified)
+                    except:
+                        p_value_ccoefs_difference = None
+                        
                     row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed,
-                        'is_degree_unnoticeable':degre_noticeability}
+                           'is_degree_unnoticeable':degre_noticeability, 'alpha_original':alpha_orig, 'alpha_modified':alpha_new, 'final_test_statistic':ll_ratios,
+                           'mean_clustering_coef_orig':np.mean(ccoefs_orig), 'mean_clustering_coef_modified':np.mean(ccoefs_modified), 
+                           'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference}
                     print(row)
                     cdf = pd.DataFrame()
                     if os.path.exists(df_path):
