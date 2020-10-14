@@ -14,7 +14,7 @@ from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
 from deeprobust.graph.utils import sparse_mx_to_torch_sparse_tensor, to_scipy
 from deeprobust.graph.global_attack import DICE, Random
-from structack.structack import StructackGreedyFold, StructackDistance
+from structack.structack import StructackDegree, StructackDegreeDistance
 
 import time
 import os
@@ -112,7 +112,7 @@ def test(model, data, split_idx, evaluator):
     return train_rocauc, valid_rocauc, test_rocauc
 
 
-attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackGreedyFold(), 'sdist':StructackDistance()}
+attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackDegree(), 'sdist':StructackDegreeDistance()}
 model_names = {
     'clean':'Clean',
     'random' : 'Random',

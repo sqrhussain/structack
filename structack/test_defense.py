@@ -165,11 +165,6 @@ def main():
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
-            # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda" if cuda else "cpu"))
-            # acc = test(adj, data, cuda, pre_test_data)
-            # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
-            # print(row)
-            # df = df.append(row, ignore_index=True)
             for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
                 print(f'{dataset} {model_name} {perturbation_rate}')
                 for seed in range(10):

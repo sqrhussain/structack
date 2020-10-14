@@ -7,7 +7,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack
-from structack.structack import StructackGreedyRandom, StructackGreedyFold, StructackDistance,StructackOnlyDistance
+from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
 import pandas as pd
 import time
 import os
@@ -77,16 +77,16 @@ def build_structack2(adj=None, features=None, labels=None, idx_train=None, devic
     return StructackBothEnds(degree_percentile_range=[0,.1,0,.1])
 
 def build_structack2_greedy(adj=None, features=None, labels=None, idx_train=None, device=None):
-    return StructackGreedyRandom()
+    return StructackDegreeRandomLinking()
 
 def build_structack_fold(adj=None, features=None, labels=None, idx_train=None, device=None):
-    return StructackGreedyFold()
+    return StructackDegree()
 
 def build_structack_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
-    return StructackDistance()
+    return StructackDegreeDistance()
 
 def build_structack_only_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
-    return StructackOnlyDistance()
+    return StructackDistance()
 
 def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=None):    
     lambda_ = 0
