@@ -260,7 +260,7 @@ def main():
             G_orig = nx.from_scipy_sparse_matrix(data.adj)
             ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
             
-            for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
+            for perturbation_rate in [0.01,0.05, 0.025, 0.10,0.15,0.20]:
                 for seed in range(5):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
                     degre_noticeability, alpha_orig, alpha_new, ll_ratios = is_degree_unnoticeable(data.adj, modified_adj)
