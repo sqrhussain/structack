@@ -45,6 +45,7 @@ def bfs_one_source(graph, source):
 
 
 def bfs(graph, sources):
+    gt = False
     if not gt:
         return {u:nx.single_source_shortest_path_length(graph,u) for u in sources}
     
