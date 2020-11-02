@@ -14,7 +14,7 @@ from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
 
 from deeprobust.graph.utils import sparse_mx_to_torch_sparse_tensor, to_scipy
 from deeprobust.graph.global_attack import DICE, Random
-from structack.structack import StructackDegree, StructackDegreeDistance
+from structack.structack import StructackDegree, StructackDegreeDistance, StructackDistance
 
 import time
 import os
@@ -111,7 +111,8 @@ def test(model, data, split_idx, evaluator):
     return train_acc, valid_acc, test_acc
 
 
-attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackDegree(), 'sdist':StructackDegreeDistance()}
+attacks = {'random':Random(), 'dice':DICE(), 'sfold':StructackDegree(), 'sdist':StructackDistance(),
+            'sdegdist':StructackDegreeDistance()}
 model_names = {
     'clean':'Clean',
     'random' : 'Random',
@@ -120,9 +121,11 @@ model_names = {
     # 'StructackOneEnd',
     # 'StructackBothEnds',
     'sfold' : 'StructackGreedyFold',
-    'sdist' : 'StructackDistance',
-    # 'Metattack',
+    'sdist' : 'StructackOnlyDistance',
+    'sdegdist': 'StructackDistance',
+    'metattack' : 'Metattack',
 }
+
 
 def main():
     parser = argparse.ArgumentParser(description='OGBN-Products (GNN)')

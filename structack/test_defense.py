@@ -8,7 +8,7 @@ import time
 import argparse
 import numpy as np
 import torch
-from deeprobust.graph.defense import GCN, ProGNN, GCNSVD, GCNJaccard
+from deeprobust.graph.defense import GCN, ProGNN, GCNSVD, GCNJaccard, RGCN
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.utils import preprocess
 from structack.compare_to_baselines import *
@@ -32,8 +32,8 @@ parser.add_argument('--hidden', type=int, default=16,
                     help='Number of hidden units.')
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Dropout rate (1 - keep probability).')
-parser.add_argument('--dataset', type=str, default='cora',
-        choices=['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed'], help='dataset')
+# parser.add_argument('--dataset', type=str, default='cora',
+#         choices=['cora', 'cora_ml', 'citeseer', 'polblogs', 'pubmed'], help='dataset')
 parser.add_argument('--attack', type=str, default='meta',
         choices=['no', 'meta', 'random', 'nettack'])
 parser.add_argument('--ptb_rate', type=float, default=0.05, help="noise ptb_rate")
@@ -122,45 +122,61 @@ def defend(perturbed_adj, data, data_prep=pre_test_data, nhid=16):
         idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
         perturbed_adj = to_scipy(perturbed_adj)
         model = GCNSVD(nfeat=features.shape[1], nclass=labels.max()+1,
-                        nhid=16, device=device)
-
+                        nhid=nhid, device=device)
         model = model.to(device)
 
         print('=== testing GCN-SVD on perturbed graph ===')
-        model.fit(features, perturbed_adj, labels, idx_train, idx_val, k=15, verbose=True)
+        model.fit(features, perturbed_adj, labels, idx_train, idx_val, k=100, verbose=True)
         model.eval()
         return model.test(idx_test).item()
+    elif args.defense == 'rgcn':
+        adj, features, labels = data.adj, data.features, data.labels
+        idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
+        perturbed_adj = to_scipy(perturbed_adj)
+        model = RGCN(nnodes=perturbed_adj.shape[0], nfeat=features.shape[1], nclass=labels.max()+1,
+                nhid=nhid, device=device)
+
+        print('=== testing RobustGCN on perturbed graph ===')
+        model = model.to(device)
+        model.fit(features, perturbed_adj, labels, idx_train, idx_val, train_iters=200, verbose=True)
+        model.eval()
+        return model.test(idx_test).item()
+    else:
+        print('defense unspecified')
+        exit(1)
+
+
 
 # The following lists should be correspondent
 attacks = [
-    # attack_random,
     attack_dice,
-    # attack_structack_fold, 
-    # attack_structack_only_distance,
-    # attack_structack_distance,
-    # attack_mettaack,
+    attack_random,
+    attack_structack_fold, 
+    attack_structack_only_distance,
+    attack_structack_distance,
+    attack_mettaack,
 ]
 model_names = [
-    # 'Random',
     'DICE',
-    # 'StructackGreedyFold', # this is StructackDegree in the paper
-    # 'StructackOnlyDistance', # this is StructackDistance in the paper
-    # 'StructackDistance', # this is Structack in the paper
-    # 'Metattack',
+    'Random',
+    'StructackGreedyFold', # this is StructackDegree in the paper
+    'StructackOnlyDistance', # this is StructackDistance in the paper
+    'StructackDistance', # this is Structack in the paper
+    'Metattack',
 ]
 model_builders = [
-    # build_random,
     build_dice,
-    # build_structack_fold,
-    # build_structack_only_distance,
-    # build_structack_distance,
-    # build_mettack,
+    build_random,
+    build_structack_fold,
+    build_structack_only_distance,
+    build_structack_distance,
+    build_mettack,
 ]
 
 
 def main():
     df_path = 'reports/eval/defense.csv'
-    datasets = ['cora_ml', 'polblogs', 'pubmed', 'citeseer', 'cora',]
+    datasets = [ 'citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed', ]
     # datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):

@@ -1,6 +1,8 @@
 import subprocess
 import networkx as nx
 import os
+from tqdm import tqdm
+import multiprocessing
 gt = True
 try:
     from graph_tool.all import *
@@ -43,8 +45,11 @@ def bfs_one_source(g, source):
 
 
 def bfs(graph, sources):
+    def get_sssp(u):
+        return nx.single_source_shortest_path_length(graph,u)
     if not gt:
-        return {u:nx.single_source_shortest_path_length(graph,u) for u in sources}
+        return list(tqdm(p.imap(get_sssp, sources), total=len(sources)))
+        # return {u:nx.single_source_shortest_path_length(graph,u) for u in tqdm(sources)}
     
 
     # if not os.path.exists(bin_path):
@@ -65,7 +70,7 @@ def bfs(graph, sources):
     g = graph_from_nx(graph)
     ret = {}
     for u in sources:
-        ret[u]  =bfs_one_source(g, u)
+        ret[u] = bfs_one_source(g, u)
     return ret
     # return {u:bfs_one_source(g, u) for u in sources}
 
