@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -7,7 +6,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack
-from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
+from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance, StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality, StructackPageRank, StructackKatzSimilarity, StructackCommunity
 import pandas as pd
 import time
 import os
@@ -16,7 +15,9 @@ import networkx as nx
 
 
 def postprocess_adj(adj):
-    return adj
+    postprocessed_adj = normalize_adj(adj)
+    postprocessed_adj = sparse_mx_to_torch_sparse_tensor(adj)
+    return postprocessed_adj, adj
 
 def attack_dice(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(adj, labels, n_perturbations)
@@ -58,11 +59,40 @@ def attack_structack_only_distance(model, adj, features, labels, n_perturbations
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
 
+def attack_structack_eigenvector_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_betwenness_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_closeness_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_pagerank(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_katz_similarity(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_community(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
 
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
     return to_scipy(model.modified_adj)
-
 
 def build_random(adj=None, features=None, labels=None, idx_train=None, device=None):
     return Random()
@@ -87,6 +117,25 @@ def build_structack_distance(adj=None, features=None, labels=None, idx_train=Non
 
 def build_structack_only_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
     return StructackDistance()
+
+def build_structack_eigenvector_centrality(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackEigenvectorCentrality()
+
+def build_structack_betweenness_centrality(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackBetweennessCentrality()
+
+def build_structack_closeness_centrality(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackClosenessCentrality()
+
+def build_structack_pagerank(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackPageRank()
+
+def build_structack_katz_similarity(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackKatzSimilarity()
+
+def build_structack_community(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackCommunity()
+
 
 def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=None):    
     lambda_ = 0
@@ -135,10 +184,10 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
         
     tick = time.time()
     # perform the attack
-    modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
+    postprocessed_modified_adj, modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
     elapsed = time.time() - tick
 
-    return modified_adj, elapsed
+    return postprocessed_modified_adj, elapsed, modified_adj
 
 def pre_test_data(data,device):
     features, labels = data.features, data.labels
@@ -163,7 +212,7 @@ def test(adj, data, cuda, data_prep,nhid=16):
                            lr=0.01, weight_decay=5e-4)
 
     gcn.fit(features, adj, labels, idx_train) # train without model picking
-    # gcn.fit(features, adj, labels, idx_train, idx_val) # train with validation model picking
+#     gcn.fit(features, adj, labels, idx_train, idx_val) # train with validation model picking
     output = gcn.output
     loss_test = F.nll_loss(output[idx_test], labels[idx_test])
     acc_test = accuracy(output[idx_test], labels[idx_test])
@@ -213,8 +262,6 @@ def filter_chisquare(ll_ratios, delta_cutoff=0.004):
     return ll_ratios < delta_cutoff
 
 def is_degree_unnoticeable(adj_orig, adj_new, d_min=2):
-
-
     degrees_orig = np.asarray(adj_orig.sum(axis=1)).reshape(-1)
     degrees_new = np.asarray(adj_new.sum(axis=1)).reshape(-1)
 
@@ -246,7 +293,8 @@ def is_difference_significant(p_value, threshold=0.05):
 
 def main():
     df_path = 'reports/eval/degre_noticeability.csv'
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
+    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs']#, 'pubmed']
+#     datasets = ['citeseer']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -260,9 +308,10 @@ def main():
             G_orig = nx.from_scipy_sparse_matrix(data.adj)
             ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
             
-            for perturbation_rate in [0.05]: #,0.01,0.10,0.15,0.20]:
+            for perturbation_rate in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20]:
                 for seed in range(5):
-                    modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, seed)
+                    postprocessed_modified_adj, elapsed, modified_adj = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed)
+                    acc = test(postprocessed_modified_adj, data, cuda, pre_test_data)
                     degre_noticeability, alpha_orig, alpha_new, ll_ratios = is_degree_unnoticeable(data.adj, modified_adj)
                     G_modified = nx.from_scipy_sparse_matrix(modified_adj)
                     ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
@@ -271,7 +320,7 @@ def main():
                     except:
                         p_value_ccoefs_difference = None
                         
-                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed,
+                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'acc':acc,
                            'is_degree_unnoticeable':degre_noticeability, 'alpha_original':alpha_orig, 'alpha_modified':alpha_new, 'final_test_statistic':ll_ratios,
                            'mean_clustering_coef_orig':np.mean(ccoefs_orig), 'mean_clustering_coef_modified':np.mean(ccoefs_modified), 
                            'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference}
@@ -287,26 +336,46 @@ def main():
 attacks = [
     attack_random,
     attack_dice,
-    # attack_structack_fold, 
-    # attack_structack_only_distance,
-    attack_structack_distance,
-    attack_mettaack,
+    attack_structack_fold, 
+    attack_structack_only_distance,
+    # attack_structack_distance,
+    # attack_mettaack,
+    attack_structack_eigenvector_centrality,
+    attack_structack_betwenness_centrality, 
+    attack_structack_closeness_centrality, 
+    attack_structack_pagerank,
+    attack_structack_katz_similarity,
+    attack_structack_community
 ]
 model_names = [
     'Random',
     'DICE',
-    # 'StructackGreedyFold', # this is StructackDegree in the paper
-    # 'StructackOnlyDistance', # this is StructackDistance in the paper
-    'StructackDistance', # this is Structack in the paper
-    'Metattack',
+    'StructackGreedyFold', # this is StructackDegree in the paper
+    'StructackOnlyDistance', # this is StructackDistance in the paper
+    # 'StructackDistance', # this is Structack in the paper
+    # 'Metattack',
+    'StructackEigenvectorCentrality',
+    'StructackBetweennessCentrality',
+    'StructackClosenessCentrality',
+    'StructackPageRank',
+    'StructackKatzSimilarity',
+    'StructackCommunity'
+    
+        
 ]
 model_builders = [
     build_random,
     build_dice,
-    # build_structack_fold,
-    # build_structack_only_distance,
-    build_structack_distance,
-    build_mettack,
+    build_structack_fold,
+    build_structack_only_distance,
+    # build_structack_distance,
+    # build_mettack,
+    build_structack_eigenvector_centrality, 
+    build_structack_betweenness_centrality, 
+    build_structack_closeness_centrality, 
+    build_structack_pagerank,
+    build_structack_katz_similarity,
+    build_structack_community
 ]
 cuda = torch.cuda.is_available()
 
