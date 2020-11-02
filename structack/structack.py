@@ -11,6 +11,7 @@ from deeprobust.graph.global_attack import BaseAttack
 import networkx as nx
 from scipy.optimize import linear_sum_assignment
 import time
+import community
 # from dgl.traversal import bfs_nodes_generator
 from structack.bfs import bfs
 
@@ -95,8 +96,6 @@ class StructackDegreeRandomLinking(StructackBase):
         modified_adj = nx.to_scipy_sparse_matrix(graph)
         return modified_adj
 
-
-
 class StructackDegree(StructackBase):
     def __init__(self):
         super(StructackDegree, self).__init__()
@@ -117,7 +116,220 @@ class StructackDegree(StructackBase):
 
         modified_adj = nx.to_scipy_sparse_matrix(graph)
         return modified_adj
+    
 
+class StructackEigenvectorCentrality(StructackBase):
+    def __init__(self):
+        super(StructackEigenvectorCentrality, self).__init__()
+        self.modified_adj = None
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+
+        # select nodes
+        nodes = self.get_nodes_with_lowest_eigenvector_centrality(graph,2*n_perturbations)
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = nodes[n_perturbations:]
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+    def get_nodes_with_lowest_eigenvector_centrality(self, G, n):
+        nodes = sorted(nx.eigenvector_centrality(G).items(), key=lambda x: x[1])
+        if len(nodes) < n: # repeat the list until it's longer than n
+            nodes = nodes * int(n/len(nodes) + 1)
+        nodes = nodes[:n]
+        return [x[0] for x in nodes]
+    
+
+class StructackBetweennessCentrality(StructackBase):
+    def __init__(self):
+        super(StructackBetweennessCentrality, self).__init__()
+        self.modified_adj = None
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+
+        # select nodes
+        nodes = self.get_nodes_with_lowest_betweenness_centrality(graph,2*n_perturbations)
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = nodes[n_perturbations:]
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+    def get_nodes_with_lowest_betweenness_centrality(self, G, n):
+        nodes = sorted(nx.betweenness_centrality(G).items(), key=lambda x: x[1])
+        if len(nodes) < n: # repeat the list until it's longer than n
+            nodes = nodes * int(n/len(nodes) + 1)
+        nodes = nodes[:n]
+        return [x[0] for x in nodes]
+    
+    
+class StructackClosenessCentrality(StructackBase):
+    def __init__(self):
+        super(StructackClosenessCentrality, self).__init__()
+        self.modified_adj = None
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+
+        # select nodes
+        nodes = self.get_nodes_with_lowest_closeness_centrality(graph,2*n_perturbations)
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = nodes[n_perturbations:]
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+    def get_nodes_with_lowest_closeness_centrality(self, G, n):
+        nodes = sorted(nx.closeness_centrality(G).items(), key=lambda x: x[1])
+        if len(nodes) < n: # repeat the list until it's longer than n
+            nodes = nodes * int(n/len(nodes) + 1)
+        nodes = nodes[:n]
+        return [x[0] for x in nodes]
+    
+      
+class StructackPageRank(StructackBase):
+    def __init__(self):
+        super(StructackPageRank, self).__init__()
+        self.modified_adj = None
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+
+        # select nodes
+        nodes = self.get_nodes_with_lowest_pagerank(graph,2*n_perturbations)
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = nodes[n_perturbations:]
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+    def get_nodes_with_lowest_pagerank(self, G, n):
+        nodes = sorted(nx.pagerank(G).items(), key=lambda x: x[1])
+        if len(nodes) < n: # repeat the list until it's longer than n
+            nodes = nodes * int(n/len(nodes) + 1)
+        nodes = nodes[:n]
+        return [x[0] for x in nodes]
+    
+class StructackKatzSimilarity(StructackBase):
+    def __init__(self):
+        super(StructackKatzSimilarity, self).__init__()
+        self.modified_adj = None
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+        tick = time.time()
+
+        # select nodes
+        nodes = np.random.choice(graph.nodes(), size=2*n_perturbations, replace=(len(graph.nodes())<2*n_perturbations))
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = self.get_nodes_with_lowest_katz_similarity(rows, adj, graph)
+        
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+    def get_nodes_with_lowest_katz_similarity(self, rows, adj, graph):
+        alpha = 0.1
+        n_steps = 4
+        temp_sum = 0
+        for i in range(1, n_steps):
+            temp_sum += alpha**i * adj**i
+        D_sqrt = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
+        D_sqrt.data = np.sqrt(D_sqrt.data)
+        sigma = D_sqrt*(temp_sum + sp.identity(adj.shape[0], format='csr'))*D_sqrt
+        cols = []
+        for i in rows:
+            cols.append(np.sort(sigma[i,:].nonzero()[1])[sigma[sigma[i,:].nonzero()[0], np.sort(sigma[i,:].nonzero()[1])].argmin()])
+        return cols
+    
+class StructackCommunity(StructackBase):
+    def __init__(self):
+        super(StructackCommunity, self).__init__()
+        self.modified_adj = None
+    def get_purturbed_adj(self, adj, n_perturbations):
+        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
+        n = adj.shape[0]
+        tick = time.time()
+
+        # select nodes
+        nodes = np.random.choice(graph.nodes(), size=2*n_perturbations, replace=(len(graph.nodes())<2*n_perturbations))
+
+        # perturb
+        rows = nodes[:n_perturbations]
+        cols = self.get_nodes_with_least_intercommunity_edges(rows, graph)
+        
+        edges = [[u,v] for u,v in zip(rows, cols)]
+        graph.add_edges_from(edges)
+
+        modified_adj = nx.to_scipy_sparse_matrix(graph)
+        return modified_adj
+    def get_nodes_with_least_intercommunity_edges(self, rows, graph):
+        node_community_mapping = community.community_louvain.best_partition(graph) 
+        community_node_mapping = {}
+        community_edge_counts = {}
+
+        for edge in graph.edges:
+            if node_community_mapping[edge[0]] not in community_node_mapping:
+                community_node_mapping[node_community_mapping[edge[0]]] = []
+            if node_community_mapping[edge[1]] not in community_node_mapping:
+                community_node_mapping[node_community_mapping[edge[1]]] = []
+            if edge[0] not in community_node_mapping[node_community_mapping[edge[0]]]:
+                community_node_mapping[node_community_mapping[edge[0]]].append(edge[0])
+            if edge[1] not in community_node_mapping[node_community_mapping[edge[1]]]:
+                community_node_mapping[node_community_mapping[edge[1]]].append(edge[1])
+            if node_community_mapping[edge[0]] == node_community_mapping[edge[1]]:
+                continue
+            if (node_community_mapping[edge[0]], node_community_mapping[edge[1]]) not in community_edge_counts:
+                community_edge_counts[(node_community_mapping[edge[0]], node_community_mapping[edge[1]])] = 0
+            if (node_community_mapping[edge[1]], node_community_mapping[edge[0]]) not in community_edge_counts:
+                community_edge_counts[(node_community_mapping[edge[1]], node_community_mapping[edge[0]])] = 0
+            community_edge_counts[(node_community_mapping[edge[0]], node_community_mapping[edge[1]])] += 1
+            community_edge_counts[(node_community_mapping[edge[1]], node_community_mapping[edge[0]])] += 1
+    
+        adj_community_rows = []
+        adj_community_cols = []
+        adj_community_data = []
+
+        for key in community_edge_counts:
+            adj_community_rows.append(key[0])
+            adj_community_cols.append(key[1])
+            adj_community_data.append(community_edge_counts[key])
+    
+        adj_community = sp.csr_matrix((adj_community_data, (adj_community_rows, adj_community_cols)))
+        adj_community = adj_community.toarray().astype('float')
+        adj_community[adj_community == 0] = np.nan
+
+        distant_communities = {}
+        for community_id in range(adj_community.shape[0]):
+            distant_community_id = np.argpartition(adj_community[community_id], 1)[:1][0]
+            while distant_community_id == 0 or distant_community_id == community_id:
+                distant_community_id = np.random.choice(adj_community.shape[0], 1)[0]
+            distant_communities[community_id] = distant_community_id
+
+        cols = []
+        for node_id in rows:
+            community_id = node_community_mapping[node_id]
+            distant_community_id = distant_communities[community_id]
+            cols.append(np.random.choice(community_node_mapping[distant_community_id],1)[0])
+        return cols
 
 class StructackDistance(StructackBase):
     def __init__(self):
@@ -266,3 +478,6 @@ class StructackDegreeDistance(StructackBase):
 
         modified_adj = nx.to_scipy_sparse_matrix(graph)
         return modified_adj
+    
+
+
