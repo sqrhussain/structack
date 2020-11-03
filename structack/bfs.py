@@ -49,8 +49,8 @@ def bfs(graph, sources):
         return nx.single_source_shortest_path_length(graph,u)
     gt = False
     if not gt:
-        return list(tqdm(p.imap(get_sssp, sources), total=len(sources)))
-        # return {u:nx.single_source_shortest_path_length(graph,u) for u in tqdm(sources)}
+        # return list(tqdm(p.imap(get_sssp, sources), total=len(sources)))
+        return {u:get_sssp(u) for u in tqdm(sources)}
     
 
     # if not os.path.exists(bin_path):
