@@ -51,6 +51,14 @@ class StructackBase(BaseAttack):
         self.modified_adj = self.get_perturbed_adj(ori_adj, n_perturbations)
 
 
+# class StructackCustom(StructackBase):
+
+#     def __init__(self):
+#         super(StructackCustom, self).__init__()
+#         self.node_selection = selection
+#         self.node_connection = connection
+
+
 class StructackOneEnd(StructackBase):
 
     def __init__(self, degree_percentile_range=[0, 1]):

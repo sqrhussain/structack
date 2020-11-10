@@ -7,9 +7,12 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
+from structack.structack import StructackBase
 from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
 from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
 from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
+import structack.node_selection as ns
+import structack.node_connection as nc
 # from structack.calc_unnoticeability import *
 import pandas as pd
 import time
@@ -62,13 +65,21 @@ def attack_structack_only_distance(model, adj, features, labels, n_perturbations
     return postprocess_adj(modified_adj)
 
 
+def attack_structack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+
 def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
     return model.modified_adj
 
+
 def attack_pgd(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, n_perturbations)
     return model.modified_adj
+
 
 def attack_minmax(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, n_perturbations)
@@ -180,6 +191,43 @@ def build_minmax(adj=None, features=None, labels=None, idx_train=None, device=No
     victim_model.fit(features, adj, labels, idx_train)
     return MinMax(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
 
+def build_custom(node_selection, node_connection):
+
+    class StructackTemp(StructackBase):
+
+        def node_selection(self, graph, n):
+            return node_selection(graph, n)
+
+        def node_connection(self, adj, nodes, n_perturbations):
+            return node_connection(adj, nodes, n_perturbations)
+
+    return StructackTemp()
+
+
+def apply_structack(model, attack, data, ptb_rate, cuda, seed=0):
+
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if cuda:
+        torch.cuda.manual_seed(seed)
+
+    device = torch.device("cuda" if cuda else "cpu")
+
+    adj, features, labels = data.adj, data.features, data.labels
+    idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
+    idx_unlabeled = np.union1d(idx_val, idx_test)
+
+
+    n_perturbations = int(ptb_rate * (adj.sum()//2))
+    print(f'n_perturbations = {n_perturbations}')
+
+        
+    tick = time.time()
+    # perform the attack
+    modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
+    elapsed = time.time() - tick
+    modified_adj = modified_adj.to(device)
+    return modified_adj, elapsed
 
 def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
 
@@ -257,10 +305,9 @@ def main():
             # print(row)
             # df = df.append(row, ignore_index=True)
             for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
-                modified_adj1, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), 0)
                 for seed in range(3):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed)
-                    print((to_scipy(modified_adj) != to_scipy(modified_adj1)).nnz==0)
+                    # print((to_scipy(modified_adj) != to_scipy(modified_adj1)).nnz==0)
                     acc = test(modified_adj, data, cuda, pre_test_data)
                     row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
                     print(row)
@@ -271,7 +318,57 @@ def main():
                     cdf.to_csv(df_path,index=False)
 
 
+def combination():
+    
+    df_path = 'reports/eval/initial_comb_eval.csv'
+
+    selection_options = [
+                [ns.get_nodes_with_lowest_eigenvector_centrality,'eigenvector'],
+                [ns.get_nodes_with_lowest_betweenness_centrality,'betweenness'],
+                [ns.get_nodes_with_lowest_closeness_centrality,'closeness'],
+                [ns.get_nodes_with_lowest_pagerank,'pagerank'],
+                [ns.get_nodes_with_lowest_degree,'degree'],
+                [ns.get_random_nodes,'random'],
+            ]
+
+    connection_options = [
+                [nc.distance_hungarian_connection,'distance'],
+                [nc.katz_connection,'katz'],
+                [nc.community_connection,'community'],
+                [nc.random_connection,'random'],
+            ]
+
+    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
+    # datasets = ['cora']
+    for dataset in datasets:
+        data = Dataset(root='/tmp/', name=dataset)
+        for selection, selection_name in selection_options:
+            for connection, connection_name in connection_options:
+                print(f'attack [{selection_name}]*[{connection_name}]')
+                for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
+                    modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
+                    for seed in range(10):
+                        acc = test(modified_adj, data, cuda, pre_test_data)
+                        row = {'dataset':dataset, 'selection':selection_name, 'connection':connection_name,
+                                'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
+                        print(row)
+                        cdf = pd.DataFrame()
+                        if os.path.exists(df_path):
+                            cdf = pd.read_csv(df_path)
+                        cdf = cdf.append(row, ignore_index=True)
+                        cdf.to_csv(df_path,index=False)
+
+
+
+
 # The following lists should be correspondent
+
+
+# attacks = [
+#     [attack_random, 'Random', build_random],
+#     [attack_dice, 'DICE', build_dice],
+# ]
+
 attacks = [
     # attack_random,
     # attack_dice,
@@ -279,12 +376,12 @@ attacks = [
     # attack_structack_only_distance,
     # attack_structack_distance,
     # attack_mettaack,
-    attack_structack_eigenvector_centrality,
-    attack_structack_betwenness_centrality, 
-    attack_structack_closeness_centrality, 
-    attack_structack_pagerank,
-    attack_structack_katz_similarity,
-    attack_structack_community
+    attack_structack,
+    attack_structack, 
+    attack_structack, 
+    attack_structack,
+    attack_structack,
+    attack_structack,
 ]
 model_names = [
     # 'Random',
@@ -298,9 +395,7 @@ model_names = [
     'StructackClosenessCentrality',
     'StructackPageRank',
     'StructackKatzSimilarity',
-    'StructackCommunity'
-    
-        
+    'StructackCommunity',
 ]
 model_builders = [
     # build_random,
@@ -319,4 +414,4 @@ model_builders = [
 cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
-    main()
+    combination()
