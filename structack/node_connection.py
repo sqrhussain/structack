@@ -52,12 +52,8 @@ def distance_hungarian_connection(adj, nodes, n_perturbations):
     print(f'distance_connection: computed assignment in {time.time() - tick}')
 
     tick = time.time()
-    edges = [[i_u[i], i_v[j]] for i, j in zip(u, v)]
-    graph.add_edges_from(edges)
-    print(f'distance_connection: added edges in {time.time() - tick}')
-
-    modified_adj = nx.to_scipy_sparse_matrix(graph)
-    return modified_adj
+    return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
+    
 
 
 def katz_connection(adj, nodes, n_perturbations):

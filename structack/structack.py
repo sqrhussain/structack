@@ -99,10 +99,7 @@ class StructackDegreeRandomLinking(StrcutackDegreeBase):
         self.modified_adj = None
 
     def node_connection(self, adj, nodes, n_perturbations):
-        np.random.shuffle(nodes)
-        rows = nodes[:n_perturbations]
-        cols = nodes[n_perturbations:]
-        return [[u, v] for u, v in zip(rows, cols)]
+        return nc.random_connection(adj, nodes, n_perturbations)
 
 
 class StructackDegree(StrcutackDegreeBase):
@@ -112,9 +109,7 @@ class StructackDegree(StrcutackDegreeBase):
         self.modified_adj = None
 
     def node_connection(self, adj, nodes, n_perturbations):
-        rows = nodes[:n_perturbations]
-        cols = nodes[n_perturbations:]
-        return [[u, v] for u, v in zip(rows, cols)]
+        return nc.sorted_connection(adj, nodes, n_perturbations)
 
 
 class StructackEigenvectorCentrality(StrcutackDegreeBase):
@@ -182,6 +177,63 @@ class StructackDistance(StructackBase):
     def node_connection(self, adj, nodes, n_perturbations):
         return nc.distance_hungarian_connection(adj, nodes, n_perturbations)
 
+class StructackDegreeDistance(StructackBase):
+    def __init__(self):
+        super(StructackDegreeDistance, self).__init__()
+        self.INF = 1e9 + 7
+        self.modified_adj = None
+
+    def node_selection(self, graph, n):
+        return ns.get_nodes_with_lowest_degree(graph, n)
+
+    def node_connection(self, adj, nodes, n_perturbations):
+        return nc.distance_hungarian_connection(adj, nodes, n_perturbations)
+
+
+    # def get_perturbed_adj(self, adj, n_perturbations):
+    #     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.DiGraph)
+    #     n = adj.shape[0]
+    #     tick = time.time()
+    #     # select nodes
+    #     nodes = self.get_nodes_with_lowest_degree(graph, 2 * n_perturbations)
+
+    #     rows = nodes[:n_perturbations]
+    #     cols = nodes[n_perturbations:]
+    #     print(f'{self.__class__.__name__}: obtained nodes in {time.time() - tick}')
+
+    #     tick = time.time()
+    #     # dgl_graph = dgl.from_networkx(graph)
+    #     # e0 = [e[0] for e in graph.edges()]
+    #     # e1 = [e[1] for e in graph.edges()]
+    #     # dgl_graph.add_edges(e1,e0)
+    #     # bfs_nodes_generator(dgl_graph,rows[0])
+    #     # print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')
+    #     # tick = time.time()
+    #     # bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
+    #     # distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
+    #     # distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
+
+    #     distance = bfs(graph, rows)  # = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
+    #     distance = {u: {v: distance[u][v] for v in cols} for u in rows}
+    #     print(f'{self.__class__.__name__}: computed distance in {time.time() - tick}')
+
+    #     tick = time.time()
+    #     mtx = np.array([np.array(list(distance[u].values())) for u in distance])
+
+    #     i_u = {i: u for i, u in enumerate(distance)}
+    #     i_v = {i: v for i, v in enumerate(distance[list(distance.keys())[0]])}
+
+    #     u, v = linear_sum_assignment(-mtx)
+    #     print(f'{self.__class__.__name__}: computed assignment in {time.time() - tick}')
+
+    #     tick = time.time()
+    #     edges = [[i_u[i], i_v[j]] for i, j in zip(u, v)]
+    #     graph.add_edges_from(edges)
+    #     print(f'{self.__class__.__name__}: added edges in {time.time() - tick}')
+
+    #     modified_adj = nx.to_scipy_sparse_matrix(graph)
+    #     return modified_adj
+
 
 class StructackRangeDistance(StructackBase):
     def __init__(self, distance_percentile_range=[0, 1]):
@@ -225,53 +277,3 @@ class StructackRangeDistance(StructackBase):
         modified_adj = nx.to_scipy_sparse_matrix(graph)
         return modified_adj
 
-
-class StructackDegreeDistance(StructackBase):
-    def __init__(self):
-        super(StructackDegreeDistance, self).__init__()
-        self.INF = 1e9 + 7
-        self.modified_adj = None
-
-    def get_perturbed_adj(self, adj, n_perturbations):
-        graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.DiGraph)
-        n = adj.shape[0]
-        tick = time.time()
-        # select nodes
-        nodes = self.get_nodes_with_lowest_degree(graph, 2 * n_perturbations)
-
-        rows = nodes[:n_perturbations]
-        cols = nodes[n_perturbations:]
-        print(f'{self.__class__.__name__}: obtained nodes in {time.time() - tick}')
-
-        tick = time.time()
-        # dgl_graph = dgl.from_networkx(graph)
-        # e0 = [e[0] for e in graph.edges()]
-        # e1 = [e[1] for e in graph.edges()]
-        # dgl_graph.add_edges(e1,e0)
-        # bfs_nodes_generator(dgl_graph,rows[0])
-        # print(f'{self.__class__.__name__}: computed SSSP on one node in {time.time()-tick}')
-        # tick = time.time()
-        # bfs_nodes = {u:bfs_nodes_generator(dgl_graph,u) for u in rows}
-        # distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
-        # distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
-
-        distance = bfs(graph, rows)  # = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
-        distance = {u: {v: distance[u][v] for v in cols} for u in rows}
-        print(f'{self.__class__.__name__}: computed distance in {time.time() - tick}')
-
-        tick = time.time()
-        mtx = np.array([np.array(list(distance[u].values())) for u in distance])
-
-        i_u = {i: u for i, u in enumerate(distance)}
-        i_v = {i: v for i, v in enumerate(distance[list(distance.keys())[0]])}
-
-        u, v = linear_sum_assignment(-mtx)
-        print(f'{self.__class__.__name__}: computed assignment in {time.time() - tick}')
-
-        tick = time.time()
-        edges = [[i_u[i], i_v[j]] for i, j in zip(u, v)]
-        graph.add_edges_from(edges)
-        print(f'{self.__class__.__name__}: added edges in {time.time() - tick}')
-
-        modified_adj = nx.to_scipy_sparse_matrix(graph)
-        return modified_adj

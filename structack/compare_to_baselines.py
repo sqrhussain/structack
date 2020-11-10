@@ -6,8 +6,11 @@ import torch.optim as optim
 from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
-from deeprobust.graph.global_attack import DICE, Random, Metattack
+from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
 from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
+from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
+from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
+# from structack.calc_unnoticeability import *
 import pandas as pd
 import time
 import os
@@ -63,6 +66,44 @@ def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, id
     model.attack(features, adj, labels, idx_train, idx_unlabeled, n_perturbations, ll_constraint=False)
     return model.modified_adj
 
+def attack_pgd(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(features, adj, labels, idx_train, n_perturbations)
+    return model.modified_adj
+
+def attack_minmax(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(features, adj, labels, idx_train, n_perturbations)
+    return model.modified_adj
+
+
+def attack_structack_eigenvector_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_betwenness_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_closeness_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_pagerank(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_katz_similarity(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
+
+def attack_structack_community(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
+    model.attack(adj, n_perturbations)
+    modified_adj = model.modified_adj
+    return postprocess_adj(modified_adj)
 
 def build_random(adj=None, features=None, labels=None, idx_train=None, device=None):
     return Random()
@@ -88,6 +129,24 @@ def build_structack_distance(adj=None, features=None, labels=None, idx_train=Non
 def build_structack_only_distance(adj=None, features=None, labels=None, idx_train=None, device=None):
     return StructackDistance()
 
+def build_structack_eigenvector_centrality(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackEigenvectorCentrality()
+
+def build_structack_betweenness_centrality(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackBetweennessCentrality()
+
+def build_structack_closeness_centrality(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackClosenessCentrality()
+
+def build_structack_pagerank(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackPageRank()
+
+def build_structack_katz_similarity(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackKatzSimilarity()
+
+def build_structack_community(adj=None, features=None, labels=None, idx_train=None, device=None):
+    return StructackCommunity()
+
 def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=None):    
     lambda_ = 0
     
@@ -104,18 +163,30 @@ def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=N
 
 
 def build_pgd(adj=None, features=None, labels=None, idx_train=None, device=None):
+    # Setup Victim Model
+    victim_model = GCN(nfeat=features.shape[1], nclass=labels.max().item()+1, nhid=16,
+            dropout=0.5, weight_decay=5e-4, device=device)
+
+    victim_model = victim_model.to(device)
+    victim_model.fit(features, adj, labels, idx_train)
     return PGDAttack(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
 
 def build_minmax(adj=None, features=None, labels=None, idx_train=None, device=None):
+    # Setup Victim Model
+    victim_model = GCN(nfeat=features.shape[1], nclass=labels.max().item()+1, nhid=16,
+            dropout=0.5, weight_decay=5e-4, device=device)
+
+    victim_model = victim_model.to(device)
+    victim_model.fit(features, adj, labels, idx_train)
     return MinMax(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
 
 
 def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
+
     np.random.seed(seed)
     torch.manual_seed(seed)
     if cuda:
         torch.cuda.manual_seed(seed)
-
 
     device = torch.device("cuda" if cuda else "cpu")
 
@@ -137,7 +208,6 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
     # perform the attack
     modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
     elapsed = time.time() - tick
-
     modified_adj = modified_adj.to(device)
     return modified_adj, elapsed
 
@@ -174,9 +244,9 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/eval/init_eval.csv'
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    datasets = ['pubmed']
+    df_path = 'reports/eval/init_eval_garbage.csv'
+    # datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
+    datasets = ['cora']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             print('attack ' + model_name)
@@ -187,8 +257,10 @@ def main():
             # print(row)
             # df = df.append(row, ignore_index=True)
             for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
-                for seed in range(10):
+                modified_adj1, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), 0)
+                for seed in range(3):
                     modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed)
+                    print((to_scipy(modified_adj) != to_scipy(modified_adj1)).nnz==0)
                     acc = test(modified_adj, data, cuda, pre_test_data)
                     row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
                     print(row)
@@ -206,7 +278,13 @@ attacks = [
     # attack_structack_fold, 
     # attack_structack_only_distance,
     # attack_structack_distance,
-    attack_mettaack,
+    # attack_mettaack,
+    attack_structack_eigenvector_centrality,
+    attack_structack_betwenness_centrality, 
+    attack_structack_closeness_centrality, 
+    attack_structack_pagerank,
+    attack_structack_katz_similarity,
+    attack_structack_community
 ]
 model_names = [
     # 'Random',
@@ -214,7 +292,15 @@ model_names = [
     # 'StructackGreedyFold', # this is StructackDegree in the paper
     # 'StructackOnlyDistance', # this is StructackDistance in the paper
     # 'StructackDistance', # this is Structack in the paper
-    'Metattack',
+    # 'Metattack',
+    'StructackEigenvectorCentrality',
+    'StructackBetweennessCentrality',
+    'StructackClosenessCentrality',
+    'StructackPageRank',
+    'StructackKatzSimilarity',
+    'StructackCommunity'
+    
+        
 ]
 model_builders = [
     # build_random,
@@ -222,9 +308,15 @@ model_builders = [
     # build_structack_fold,
     # build_structack_only_distance,
     # build_structack_distance,
-    build_mettack,
+    # build_mettack,
+    build_structack_eigenvector_centrality, 
+    build_structack_betweenness_centrality, 
+    build_structack_closeness_centrality, 
+    build_structack_pagerank,
+    build_structack_katz_similarity,
+    build_structack_community
 ]
-cuda = False #torch.cuda.is_available()
+cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
     main()

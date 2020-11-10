@@ -176,8 +176,8 @@ model_builders = [
 
 def main():
     df_path = 'reports/eval/defense.csv'
-    datasets = [ 'citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed', ]
-    # datasets = ['citeseer']
+    datasets = ['cora_ml', 'polblogs', 'pubmed', ] #  'citeseer', 'cora', 
+    datasets = ['cora',  'pubmed',]
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -199,6 +199,7 @@ def main():
                     cdf.to_csv(df_path,index=False)
 
 
+cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
     main()
