@@ -10,7 +10,12 @@ from structack.structack import StructackDegreeRandomLinking, StructackDegree, S
 import pandas as pd
 import time
 import os
+from scipy import stats
 from scipy.stats import wilcoxon
+from scipy.stats import pearsonr
+from scipy.stats import spearmanr
+from scipy.stats import kendalltau
+from scipy.stats import norm
 import networkx as nx
 
 
@@ -292,9 +297,9 @@ def is_difference_significant(p_value, threshold=0.05):
 
 
 def main():
-    df_path = 'reports/eval/degre_noticeability.csv'
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs']#, 'pubmed']
-#     datasets = ['citeseer']
+    df_path = 'reports/eval/degree_noticeability.csv'
+    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
+    #datasets = ['cora_ml', 'polblogs', 'pubmed']
     for dataset in datasets:
         for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
             data = Dataset(root='/tmp/', name=dataset)
@@ -306,6 +311,7 @@ def main():
             # df = df.append(row, ignore_index=True)
             
             G_orig = nx.from_scipy_sparse_matrix(data.adj)
+            degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
             ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
             
             for perturbation_rate in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20]:
@@ -314,16 +320,46 @@ def main():
                     acc = test(postprocessed_modified_adj, data, cuda, pre_test_data)
                     degre_noticeability, alpha_orig, alpha_new, ll_ratios = is_degree_unnoticeable(data.adj, modified_adj)
                     G_modified = nx.from_scipy_sparse_matrix(modified_adj)
+                    degree_centralities_modified = np.array(list(nx.degree_centrality(G_modified).values()))
                     ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
+                    try:
+                        _, p_value_degree_centralities_difference(degree_centralities_orig - degree_centralities_modified)
+                    except:
+                        p_value_degree_centralities_difference = None
                     try:
                         _, p_value_ccoefs_difference = wilcoxon(ccoefs_orig - ccoefs_modified)
                     except:
                         p_value_ccoefs_difference = None
+                    relative_degree_change = np.abs(degree_centralities_modified/degree_centralities_orig - np.ones(len(degree_centralities_orig)))
+                    relative_ccoefs_change = np.nan_to_num(np.abs(ccoefs_modified/ccoefs_orig - np.ones(len(ccoefs_orig))))
+                    relative_degree_assortativity_change = abs(nx.degree_assortativity_coefficient(G_modified)/nx.degree_assortativity_coefficient(G_orig) - 1)
+                    
+
+                    
+                    dc_pearson_correlation, dc_pearson_pvalue = pearsonr(degree_centralities_orig, degree_centralities_modified)
+                    dc_spearman_correlation, dc_spearman_pvalue = spearmanr(degree_centralities_orig, degree_centralities_modified)
+                    dc_kendall_correlation, dc_kendall_pvalue = kendalltau(degree_centralities_orig, degree_centralities_modified)
+                    dc_kstest_statistic, dc_kstest_pvalue = stats.ks_2samp(degree_centralities_orig, degree_centralities_modified)
+
+                    cc_pearson_correlation, cc_pearson_pvalue = pearsonr(ccoefs_orig, ccoefs_modified)
+                    cc_spearman_correlation, cc_spearman_pvalue = spearmanr(ccoefs_orig, ccoefs_modified)
+                    cc_kendall_correlation, cc_kendall_pvalue = kendalltau(ccoefs_orig, ccoefs_modified)
+                    cc_kstest_statistic, cc_kstest_pvalue = stats.ks_2samp(ccoefs_orig, ccoefs_modified)
                         
-                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'acc':acc,
+                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'acc':None,
                            'is_degree_unnoticeable':degre_noticeability, 'alpha_original':alpha_orig, 'alpha_modified':alpha_new, 'final_test_statistic':ll_ratios,
                            'mean_clustering_coef_orig':np.mean(ccoefs_orig), 'mean_clustering_coef_modified':np.mean(ccoefs_modified), 
-                           'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference}
+                           'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference,
+                           'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
+                           'degree_centralities_difference_unnoticeable':not is_difference_significant(p_value_degree_centralities_difference), 'p_value_degree_centralities_difference':p_value_degree_centralities_difference,
+                           'ccoefs_pearson_correlation':cc_pearson_correlation, 'ccoefs_pearson_pvalue':cc_pearson_pvalue,
+                            'ccoefs_spearman_correlation':cc_spearman_correlation, 'ccoefs_spearman_pvalue':cc_spearman_pvalue,
+                            'ccoefs_kendall_correlation':cc_kendall_correlation, 'ccoefs_kendall_pvalue':cc_kendall_pvalue,
+                            'ccoefs_kstest_statistic':cc_kstest_statistic, 'ccoefs_kstest_pvalue':cc_kstest_pvalue,
+                            'mean_relative_degree_change_all_nodes':np.mean(relative_degree_change), 'mean_relative_degree_change_perturbed_nodes':np.nanmean(np.where(relative_degree_change!=0,relative_degree_change,np.nan),0),
+                            'mean_relative_ccoefs_change_all_nodes':np.mean(relative_ccoefs_change), 'mean_relative_ccoefs_change_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_change!=0,relative_ccoefs_change,np.nan),0),
+                            'relative_degree_assortativity_change':relative_degree_assortativity_change}
+
                     print(row)
                     cdf = pd.DataFrame()
                     if os.path.exists(df_path):
@@ -338,8 +374,8 @@ attacks = [
     attack_dice,
     attack_structack_fold, 
     attack_structack_only_distance,
-    # attack_structack_distance,
-    # attack_mettaack,
+    attack_structack_distance,
+    attack_mettaack,
     attack_structack_eigenvector_centrality,
     attack_structack_betwenness_centrality, 
     attack_structack_closeness_centrality, 
@@ -352,8 +388,8 @@ model_names = [
     'DICE',
     'StructackGreedyFold', # this is StructackDegree in the paper
     'StructackOnlyDistance', # this is StructackDistance in the paper
-    # 'StructackDistance', # this is Structack in the paper
-    # 'Metattack',
+    'StructackDistance', # this is Structack in the paper
+    'Metattack',
     'StructackEigenvectorCentrality',
     'StructackBetweennessCentrality',
     'StructackClosenessCentrality',
@@ -368,8 +404,8 @@ model_builders = [
     build_dice,
     build_structack_fold,
     build_structack_only_distance,
-    # build_structack_distance,
-    # build_mettack,
+    build_structack_distance,
+    build_mettack,
     build_structack_eigenvector_centrality, 
     build_structack_betweenness_centrality, 
     build_structack_closeness_centrality, 
