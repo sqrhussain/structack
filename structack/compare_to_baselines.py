@@ -319,28 +319,35 @@ def main():
 
 
 def combination():
-    
-    df_path = 'reports/eval/initial_comb_eval.csv'
+    init_seed = 15
+
+    df_path = 'reports/eval/initial_comb_eval-garbage.csv'
 
     selection_options = [
+                [ns.get_random_nodes,'random'],
                 [ns.get_nodes_with_lowest_eigenvector_centrality,'eigenvector'],
                 [ns.get_nodes_with_lowest_betweenness_centrality,'betweenness'],
                 [ns.get_nodes_with_lowest_closeness_centrality,'closeness'],
                 [ns.get_nodes_with_lowest_pagerank,'pagerank'],
                 [ns.get_nodes_with_lowest_degree,'degree'],
-                [ns.get_random_nodes,'random'],
             ]
 
     connection_options = [
+                [nc.random_connection,'random'],
                 [nc.distance_hungarian_connection,'distance'],
                 [nc.katz_connection,'katz'],
                 [nc.community_connection,'community'],
-                [nc.random_connection,'random'],
             ]
 
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
     # datasets = ['cora']
     for dataset in datasets:
+
+        np.random.seed(init_seed)
+        torch.manual_seed(init_seed)
+        if cuda:
+            torch.cuda.manual_seed(init_seed)
+
         data = Dataset(root='/tmp/', name=dataset)
         for selection, selection_name in selection_options:
             for connection, connection_name in connection_options:
@@ -348,6 +355,12 @@ def combination():
                 for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
                     modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
                     for seed in range(10):
+
+                        np.random.seed(seed)
+                        torch.manual_seed(seed)
+                        if cuda:
+                            torch.cuda.manual_seed(seed)
+
                         acc = test(modified_adj, data, cuda, pre_test_data)
                         row = {'dataset':dataset, 'selection':selection_name, 'connection':connection_name,
                                 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
