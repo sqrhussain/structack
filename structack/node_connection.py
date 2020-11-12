@@ -6,6 +6,7 @@ import time
 import community
 from structack.bfs import bfs
 import scipy.sparse as sp
+import scipy.sparse.linalg as spalg
 
 
 def sorted_connection(adj, nodes, n_perturbations):
@@ -53,27 +54,33 @@ def distance_hungarian_connection(adj, nodes, n_perturbations):
 
     tick = time.time()
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
-    
 
 
-def katz_connection(adj, nodes, n_perturbations):
+def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
-
-    alpha = 0.1
-    n_steps = 4
-    temp_sum = 0
-    for i in range(1, n_steps):
-        temp_sum += alpha ** i * adj ** i
-    D_sqrt = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
-    D_sqrt.data = np.sqrt(D_sqrt.data)
-    sigma = D_sqrt * (temp_sum + sp.identity(adj.shape[0], format='csr')) * D_sqrt
+    D = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
+    D_inv = spalg.inv(D)
+    D_invA = D_inv * adj
+    l,v = spalg.eigs(D_invA, k=1, which="LR")
+    lmax = l[0].real
+    alpha = (1/lmax) * 0.9
+    sigma = csr_matrix(D_invA.shape, dtype=np.float)
+    print('Calculate sigma matrix')
+    for i in range(nsteps):
+        sigma_new = alpha *D_invA*sigma + sp.identity(adj.shape[0], dtype=np.float, format='csr')
+        diff = abs(spalg.norm(sigma, 1) - spalg.norm(sigma_new, 1))
+        sigma = sigma_new
+        print(diff)
+        of diff < threshold:
+            break
+        print('Number of steps taken: ' + str(i))
     cols = []
     for i in rows:
         cols.append(np.sort(sigma[i, :].nonzero()[1])[
                         sigma[sigma[i, :].nonzero()[0], np.sort(sigma[i, :].nonzero()[1])].argmin()])
-    return [[u, v] for u, v in zip(rows, cols)]
-
+    return [[u, v] for u, v in zip(rows, cols)]    
+    
 
 def community_connection(adj, nodes, n_perturbations):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
