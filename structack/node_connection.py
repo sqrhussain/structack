@@ -56,7 +56,7 @@ def distance_hungarian_connection(adj, nodes, n_perturbations):
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
-def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000):
+def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=100):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     D = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
@@ -65,14 +65,14 @@ def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=1000
     l,v = spalg.eigs(D_invA, k=1, which="LR")
     lmax = l[0].real
     alpha = (1/lmax) * 0.9
-    sigma = csr_matrix(D_invA.shape, dtype=np.float)
+    sigma = sp.csr_matrix(D_invA.shape, dtype=np.float)
     print('Calculate sigma matrix')
     for i in range(nsteps):
         sigma_new = alpha *D_invA*sigma + sp.identity(adj.shape[0], dtype=np.float, format='csr')
         diff = abs(spalg.norm(sigma, 1) - spalg.norm(sigma_new, 1))
         sigma = sigma_new
         print(diff)
-        of diff < threshold:
+        if diff < threshold:
             break
         print('Number of steps taken: ' + str(i))
     cols = []
