@@ -56,7 +56,7 @@ def distance_hungarian_connection(adj, nodes, n_perturbations):
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
-def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=100):
+def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     D = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj

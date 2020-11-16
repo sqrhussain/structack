@@ -292,35 +292,49 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 def main():
-    df_path = 'reports/eval/init_eval_garbage.csv'
-    # datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    datasets = ['cora']
+    df_path = 'reports/eval/baseline_eval.csv'
+    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs']
+    # datasets = ['cora']
+    attacks = [
+        # [attack_random, 'Random', build_random],
+        [attack_dice, 'DICE', build_dice],
+        [attack_mettaack, 'Metattack', build_mettack],
+        [attack_pgd, 'PGD', build_pgd],
+        [attack_minmax, 'MinMax', build_minmax],
+    ]
     for dataset in datasets:
-        for attack, model_builder, model_name in zip(attacks,model_builders, model_names):
+        for attack, model_name, model_builder in attacks:
             print('attack ' + model_name)
-            data = Dataset(root='/tmp/', name=dataset)
-            # adj,_,_ = preprocess(data.adj, data.features, data.labels, preprocess_adj=False, sparse=True, device=torch.device("cuda" if cuda else "cpu"))
-            # acc = test(adj, data, cuda, pre_test_data)
-            # row = {'dataset':dataset, 'attack':'Clean', 'seed':None, 'acc':acc}
-            # print(row)
-            # df = df.append(row, ignore_index=True)
-            for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
-                for seed in range(3):
-                    modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed)
-                    # print((to_scipy(modified_adj) != to_scipy(modified_adj1)).nnz==0)
-                    acc = test(modified_adj, data, cuda, pre_test_data)
-                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed}
-                    print(row)
-                    cdf = pd.DataFrame()
-                    if os.path.exists(df_path):
-                        cdf = pd.read_csv(df_path)
-                    cdf = cdf.append(row, ignore_index=True)
-                    cdf.to_csv(df_path,index=False)
+            for split_seed in range(5):
+                np.random.seed(split_seed)
+                torch.manual_seed(split_seed)
+                if cuda:
+                    torch.cuda.manual_seed(split_seed)
+                data = Dataset(root='/tmp/', name=dataset)
+                for perturbation_rate in [0.05]: #,0.10,0.15,0.20]:
+                    for attack_seed in range(1 if model_name=='DICE' else 5):
+                        for gcn_seed in range(5):
+                            modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
+
+                            np.random.seed(gcn_seed)
+                            torch.manual_seed(gcn_seed)
+                            if cuda:
+                                torch.cuda.manual_seed(gcn_seed)
+                            acc = test(modified_adj, data, cuda, pre_test_data)
+                            row = {'dataset':dataset, 'attack':model_name, 'gcn_seed':gcn_seed, 'acc':acc,
+                                'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'attack_seed' :attack_seed,
+                                'split_seed':split_seed}
+                            print(row)
+                            cdf = pd.DataFrame()
+                            if os.path.exists(df_path):
+                                cdf = pd.read_csv(df_path)
+                            cdf = cdf.append(row, ignore_index=True)
+                            cdf.to_csv(df_path,index=False)
 
 
 def combination():
 
-    df_path = 'reports/eval/initial_comb_eval-garbage.csv'
+    df_path = 'reports/eval/comb_acc_eval.csv'
 
     selection_options = [
                 [ns.get_random_nodes,'random'],
@@ -406,54 +420,57 @@ def combination():
 # The following lists should be correspondent
 
 
-# attacks = [
-#     [attack_random, 'Random', build_random],
-#     [attack_dice, 'DICE', build_dice],
-# ]
 
-attacks = [
-    # attack_random,
-    # attack_dice,
-    # attack_structack_fold, 
-    # attack_structack_only_distance,
-    # attack_structack_distance,
-    # attack_mettaack,
-    attack_structack,
-    attack_structack, 
-    attack_structack, 
-    attack_structack,
-    attack_structack,
-    attack_structack,
-]
-model_names = [
-    # 'Random',
-    # 'DICE',
-    # 'StructackGreedyFold', # this is StructackDegree in the paper
-    # 'StructackOnlyDistance', # this is StructackDistance in the paper
-    # 'StructackDistance', # this is Structack in the paper
-    # 'Metattack',
-    'StructackEigenvectorCentrality',
-    'StructackBetweennessCentrality',
-    'StructackClosenessCentrality',
-    'StructackPageRank',
-    'StructackKatzSimilarity',
-    'StructackCommunity',
-]
-model_builders = [
-    # build_random,
-    # build_dice,
-    # build_structack_fold,
-    # build_structack_only_distance,
-    # build_structack_distance,
-    # build_mettack,
-    build_structack_eigenvector_centrality, 
-    build_structack_betweenness_centrality, 
-    build_structack_closeness_centrality, 
-    build_structack_pagerank,
-    build_structack_katz_similarity,
-    build_structack_community
-]
+# attacks = [
+#     attack_random,
+#     attack_dice,
+#     # attack_structack_fold, 
+#     # attack_structack_only_distance,
+#     # attack_structack_distance,
+#     attack_mettaack,
+#     attack_pgd,
+#     attack_minmax,
+#     # attack_structack,
+#     # attack_structack, 
+#     # attack_structack, 
+#     # attack_structack,
+#     # attack_structack,
+#     # attack_structack,
+# ]
+# model_names = [
+#     'Random',
+#     'DICE',
+#     # 'StructackGreedyFold', # this is StructackDegree in the paper
+#     # 'StructackOnlyDistance', # this is StructackDistance in the paper
+#     # 'StructackDistance', # this is Structack in the paper
+#     'Metattack',
+#     'PGD',
+#     'MinMax',
+#     # 'StructackEigenvectorCentrality',
+#     # 'StructackBetweennessCentrality',
+#     # 'StructackClosenessCentrality',
+#     # 'StructackPageRank',
+#     # 'StructackKatzSimilarity',
+#     # 'StructackCommunity',
+# ]
+# model_builders = [
+#     build_random,
+#     build_dice,
+#     # build_structack_fold,
+#     # build_structack_only_distance,
+#     # build_structack_distance,
+#     build_mettack,
+#     build_pgd,
+#     build_minmax,
+#     # build_structack_eigenvector_centrality, 
+#     # build_structack_betweenness_centrality, 
+#     # build_structack_closeness_centrality, 
+#     # build_structack_pagerank,
+#     # build_structack_katz_similarity,
+#     # build_structack_community,
+# ]
 cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
-    combination()
+    main()
+    # combination()
