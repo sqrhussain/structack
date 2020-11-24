@@ -457,9 +457,9 @@ def combination(args):
 
     connection_options = [
                 [nc.random_connection,'random'],
-                [nc.community_connection,'community'],
+                [nc.community_hungarian_connection,'community'],
                 [nc.distance_hungarian_connection,'distance'],
-                [nc.katz_connection,'katz'],
+                [nc.katz_hungarian_connection,'katz'],
             ]
     
         
