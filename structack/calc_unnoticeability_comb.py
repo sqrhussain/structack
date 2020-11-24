@@ -475,25 +475,21 @@ def combination():
             for connection, connection_name in connection_options:
                 print(f'attack [{selection_name}]*[{connection_name}]')
                 for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
-                    modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
+                    if selection_name == 'random' or connection_name == 'random':
+                        seed_range = 5
+                    else:
+                        seed_range = 1
+                    for seed in range(seed_range):
+                        modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=seed)
                         
-                    # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
-                    data = Dataset(root='/tmp/', name=dataset)
-                    
+                        # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
+                        data = Dataset(root='/tmp/', name=dataset)
 
-                    for seed in range(5):
-                        np.random.seed(seed)
-                        torch.manual_seed(seed)
-                        if cuda:
-                            torch.cuda.manual_seed(seed)
-
-                        acc = test(modified_adj, data, cuda, pre_test_data)
                         row = {
                             'dataset':dataset, 
                             'selection':selection_name, 
                             'connection':connection_name,
                             'gcn_seed':seed, 
-                            'acc':acc, 
                             'perturbation_rate':perturbation_rate,
                             'elapsed':elapsed}
                         row = extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, data.adj, modified_adj)
