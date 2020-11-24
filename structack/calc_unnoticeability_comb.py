@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -24,7 +23,14 @@ from scipy.stats import spearmanr
 from scipy.stats import kendalltau
 from scipy.stats import norm
 import networkx as nx
+import argparse
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run structack.")
+    parser.add_argument('--datasets', nargs='+', default=['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed'], help='List of datasets to evaluate.')
+    parser.add_argument('--output', nargs='?', default='reports/eval/comb_acc_eval_noticeability.csv', help='Evaluation results output filepath.')
+    parser.add_argument('--approach_type', nargs='?', default='structack', help='Type of approaches to run [baseline/structack].')
+    return parser.parse_args()
 
 def postprocess_adj(adj):
 #     adj = normalize_adj(adj)
@@ -52,7 +58,10 @@ def attack_structack2(model, adj, features, labels, n_perturbations, idx_train, 
     return postprocess_adj(modified_adj)
 
 def attack_structack2_greedy(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
-    model.attack(adj, n_perturbations)
+
+    
+    
+    
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
 
@@ -392,10 +401,10 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
     return row
 
 
-def main():
-    df_path = 'reports/eval/baseline_eval.csv'
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs']
-    # datasets = ['cora']
+def main(args):
+    datasets = args['datasets']
+    df_path = args['output']
+    
     attacks = [
         # [attack_random, 'Random', build_random],
         [attack_dice, 'DICE', build_dice],
@@ -435,9 +444,10 @@ def main():
                         cdf.to_csv(df_path,index=False)
 
 
-def combination():
-    df_path = 'reports/eval/comb_acc_eval_noticeability.csv'
-
+def combination(args):
+    datasets = args['datasets']
+    df_path = args['output']
+    
     selection_options = [
                 [ns.get_random_nodes,'random'],
                 [ns.get_nodes_with_lowest_degree,'degree'],
@@ -453,11 +463,9 @@ def combination():
                 [nc.distance_hungarian_connection,'distance'],
                 [nc.katz_hungarian_connection,'katz'],
             ]
-
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    datasets = ['citeseer']
+    
+        
     for dataset in datasets:
-
         data = Dataset(root='/tmp/', name=dataset)
         G_orig = nx.from_scipy_sparse_matrix(data.adj)
         degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
@@ -543,5 +551,8 @@ def combination():
 cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
-#     main()
-    combination()
+    args = parse_args()
+    if args['approach_type'] == 'baseline':
+        main(args)
+    elif args['approach_type'] == 'structack':
+        combination(args)
