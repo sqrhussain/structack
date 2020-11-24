@@ -346,40 +346,43 @@ def combination():
             ]
 
     connection_options = [
-                [nc.random_connection,'random'],
-                [nc.community_connection,'community'],
-                [nc.distance_hungarian_connection,'distance'],
-                [nc.katz_connection,'katz'],
+                # [nc.random_connection,'random'],
+                # [nc.community_connection,'community'],
+                # [nc.distance_hungarian_connection,'distance'],
+                # [nc.katz_connection,'katz'],
+                [nc.katz_connection,'katz-0.5'],
             ]
 
     datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
     # datasets = ['cora']
+    split_seeds = 5
+    gcn_seeds = 5
     for dataset in datasets:
+        ''' Clean graph evaluation '''
+        # for split_seed in range(split_seeds):
+        #     np.random.seed(split_seed)
+        #     torch.manual_seed(split_seed)
+        #     if cuda:
+        #         torch.cuda.manual_seed(split_seed)
+        #     # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
+        #     data = Dataset(root='/tmp/', name=dataset)
+        #     for seed in range(split_seeds):
 
-        for split_seed in range(5):
-            np.random.seed(split_seed)
-            torch.manual_seed(split_seed)
-            if cuda:
-                torch.cuda.manual_seed(split_seed)
-            # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
-            data = Dataset(root='/tmp/', name=dataset)
-            for seed in range(5):
-
-                np.random.seed(seed)
-                torch.manual_seed(seed)
-                if cuda:
-                    torch.cuda.manual_seed(seed)
-                acc = test(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
-                            data, cuda, pre_test_data)
-                row = {'dataset':dataset, 'selection':'clean', 'connection':'clean',
-                        'gcn_seed':seed, 'acc':acc, 'perturbation_rate':0,'elapsed':0,
-                        'split_seed':split_seed}
-                print(row)
-                cdf = pd.DataFrame()
-                if os.path.exists(df_path):
-                    cdf = pd.read_csv(df_path)
-                cdf = cdf.append(row, ignore_index=True)
-                cdf.to_csv(df_path,index=False)
+        #         np.random.seed(seed)
+        #         torch.manual_seed(seed)
+        #         if cuda:
+        #             torch.cuda.manual_seed(seed)
+        #         acc = test(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
+        #                     data, cuda, pre_test_data)
+        #         row = {'dataset':dataset, 'selection':'clean', 'connection':'clean',
+        #                 'gcn_seed':seed, 'acc':acc, 'perturbation_rate':0,'elapsed':0,
+        #                 'split_seed':split_seed}
+        #         print(row)
+        #         cdf = pd.DataFrame()
+        #         if os.path.exists(df_path):
+        #             cdf = pd.read_csv(df_path)
+        #         cdf = cdf.append(row, ignore_index=True)
+        #         cdf.to_csv(df_path,index=False)
 
         data = Dataset(root='/tmp/', name=dataset)
         for selection, selection_name in selection_options:
@@ -387,7 +390,7 @@ def combination():
                 print(f'attack [{selection_name}]*[{connection_name}]')
                 for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
                     modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
-                    for split_seed in range(5):
+                    for split_seed in range(split_seeds):
                         np.random.seed(split_seed)
                         torch.manual_seed(split_seed)
                         if cuda:
@@ -396,7 +399,7 @@ def combination():
                         # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
                         data = Dataset(root='/tmp/', name=dataset)
 
-                        for seed in range(5):
+                        for seed in range(gcn_seeds):
 
                             np.random.seed(seed)
                             torch.manual_seed(seed)
@@ -472,5 +475,5 @@ def combination():
 cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
-    main()
-    # combination()
+    # main()
+    combination()
