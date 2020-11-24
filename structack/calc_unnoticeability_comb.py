@@ -346,10 +346,6 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
     dc_kstest_statistic, dc_kstest_pvalue = stats.ks_2samp(degree_centralities_orig, degree_centralities_modified)
     cc_kstest_statistic, cc_kstest_pvalue = stats.ks_2samp(ccoefs_orig, ccoefs_modified)
     
-    print(len(G_orig.nodes))
-    print(len(G_orig.edges))
-    print(len(G_modified.nodes))
-    print(len(G_modified.edges))
     
     row = {
         'dataset':row['dataset'], 
@@ -358,7 +354,7 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
         'gcn_seed':row['gcn_seed'], 
         'perturbation_rate':row['perturbation_rate'],
         'elapsed':row['elapsed'],
-        'edge_count_diff':abs(G_orig.nodes-G_modified.edges)
+        'edge_count_diff':abs(len(G_orig.nodes)-len(G_modified.edges))
         
         'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 
         'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
