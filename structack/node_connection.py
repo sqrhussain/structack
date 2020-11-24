@@ -78,7 +78,7 @@ def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=1000
     cols = []
     for i in rows:
         cols.append(np.argmin(sigma[i, :].todense(), axis=1)[0,0])
-    return sigma, [[u, v] for u, v in zip(rows, cols)]
+    return [[u, v] for u, v in zip(rows, cols)]
 
 
 def community_connection(adj, nodes, n_perturbations):
