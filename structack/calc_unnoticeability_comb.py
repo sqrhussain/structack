@@ -308,15 +308,15 @@ def calc_relative_change(orig, mod):
     denominator[denominator == 0] = np.nan
     return np.nan_to_num(np.abs((mod-orig)/denominator))
 
-def calc_relative_diff(orig, mod, denominator_type):
+def calc_relative_diff(orig, mod, denominator_type, lala):
     if denominator_type == 'max':
         denominator = np.array([max(z) for z in map(lambda x, y:(x,y), orig, mod)])
         denominator[denominator == 0] = np.nan
-        return np.abs((mod-orig)/denominator)
+        return np.nan_to_num(np.abs((mod-orig)/denominator))
     elif denominator_type == 'min':
         denominator = np.array([min(z) for z in map(lambda x, y:(x,y), orig, mod)])
         denominator[denominator == 0] = np.nan
-        return np.abs((mod-orig)/denominator)
+        return np.nan_to_num(np.abs((mod-orig)/denominator))
     elif denominator_type == 'mean':
         denominator = (mod+orig)/2
         denominator[denominator == 0] = np.nan
@@ -333,19 +333,16 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
     relative_degree_change = calc_relative_change(degree_centralities_orig, degree_centralities_modified)
     relative_ccoefs_change = calc_relative_change(ccoefs_orig, ccoefs_modified)
                     
-    relative_degree_diff_min = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'min')
-    relative_degree_diff_max = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'max')
-    relative_degree_diff_mean = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'mean')
+    relative_degree_diff_min = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'min', 'degree')
+    relative_degree_diff_max = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'max', 'degree')
+    relative_degree_diff_mean = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'mean', 'degree')
                     
-    relative_ccoefs_diff_min = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'min')
-    relative_ccoefs_diff_max = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'max')
-    relative_ccoefs_diff_mean = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'mean')
+    relative_ccoefs_diff_min = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'min', 'ccoefs')
+    relative_ccoefs_diff_max = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'max', 'ccoefs')
+    relative_ccoefs_diff_mean = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'mean', 'ccoefs')
                     
-    relative_degree_assortativity_change = calc_relative_change(nx.degree_assortativity_coefficient(G_orig), nx.degree_assortativity_coefficient(G_modified))
-
     dc_kstest_statistic, dc_kstest_pvalue = stats.ks_2samp(degree_centralities_orig, degree_centralities_modified)
     cc_kstest_statistic, cc_kstest_pvalue = stats.ks_2samp(ccoefs_orig, ccoefs_modified)
-    
     
     row = {
         'dataset':row['dataset'], 
@@ -354,7 +351,7 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
         'gcn_seed':row['gcn_seed'], 
         'perturbation_rate':row['perturbation_rate'],
         'elapsed':row['elapsed'],
-        'edge_count_diff':abs(len(G_orig.nodes)-len(G_modified.edges))
+        'edge_count_diff':abs(len(G_orig.nodes)-len(G_modified.edges)),
         
         'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 
         'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
@@ -372,29 +369,26 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
         
         'mean_relative_degree_change_all_nodes':np.mean(relative_degree_change),
         'mean_relative_degree_change_perturbed_nodes':np.nanmean(np.where(relative_degree_change!=0,relative_degree_change,np.nan),0),
-        
         'mean_relative_ccoefs_change_all_nodes':np.mean(relative_ccoefs_change),
         'mean_relative_ccoefs_change_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_change!=0,relative_ccoefs_change,np.nan),0),
         
-        'relative_degree_assortativity_change':relative_degree_assortativity_change,
+        'degree_assortativity_orig':nx.degree_assortativity_coefficient(G_orig),
+        'degree_assortativity_modified':nx.degree_assortativity_coefficient(G_modified),
+        'relative_degree_assortativity_change':calc_relative_change(nx.degree_assortativity_coefficient(G_orig), nx.degree_assortativity_coefficient(G_modified)),
         
         'mean_relative_degree_diff_min_all_nodes':np.mean(relative_degree_diff_min),
         'mean_relative_degree_diff_min_perturbed_nodes':np.nanmean(np.where(relative_degree_diff_min!=0,relative_degree_diff_min,np.nan),0),
-        
         'mean_relative_degree_diff_max_all_nodes':np.mean(relative_degree_diff_max),
         'mean_relative_degree_diff_max_perturbed_nodes':np.nanmean(np.where(relative_degree_diff_max!=0,relative_degree_diff_max,np.nan),0),
-        
         'mean_relative_degree_diff_mean_all_nodes':np.mean(relative_degree_diff_mean),
         'mean_relative_degree_diff_mean_perturbed_nodes':np.nanmean(np.where(relative_degree_diff_mean!=0,relative_degree_diff_mean,np.nan),0),
         
         'mean_relative_ccoefs_diff_min_all_nodes':np.mean(relative_ccoefs_diff_min),
         'mean_relative_ccoefs_diff_min_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_diff_min!=0,relative_ccoefs_diff_min,np.nan),0),
-        
         'mean_relative_ccoefs_diff_max_all_nodes':np.mean(relative_ccoefs_diff_max),
         'mean_relative_ccoefs_diff_max_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_diff_max!=0,relative_ccoefs_diff_max,np.nan),0),
-        
         'mean_relative_ccoefs_diff_mean_all_nodes':np.mean(relative_ccoefs_diff_mean),
-        'mean_relative_ccoefs_diff_mean_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_diff_mean!=0,relative_ccoefs_diff_mean,np.nan),0),}
+        'mean_relative_ccoefs_diff_mean_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_diff_mean!=0,relative_ccoefs_diff_mean,np.nan),0)}
     return row
 
 
@@ -425,20 +419,20 @@ def main():
                     for attack_seed in range(1 if model_name=='DICE' else 5):
                         modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
 
-                            row = {
-                                'dataset':dataset, 
-                                'attack':model_name, 
-                                'perturbation_rate':perturbation_rate,
-                                'elapsed':elapsed, 
-                                'attack_seed' :attack_seed,
-                                'split_seed':split_seed}
-                            row = extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, data.adj, modified_adj)
-                            print(row)
-                            cdf = pd.DataFrame()
-                            if os.path.exists(df_path):
-                                cdf = pd.read_csv(df_path)
-                            cdf = cdf.append(row, ignore_index=True)
-                            cdf.to_csv(df_path,index=False)
+                        row = {
+                            'dataset':dataset, 
+                            'attack':model_name, 
+                            'perturbation_rate':perturbation_rate,
+                            'elapsed':elapsed, 
+                            'attack_seed' :attack_seed,
+                            'split_seed':split_seed}
+                        row = extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, data.adj, modified_adj)
+                        print(row)
+                        cdf = pd.DataFrame()
+                        if os.path.exists(df_path):
+                            cdf = pd.read_csv(df_path)
+                        cdf = cdf.append(row, ignore_index=True)
+                        cdf.to_csv(df_path,index=False)
 
 
 def combination():
@@ -473,11 +467,7 @@ def combination():
             for connection, connection_name in connection_options:
                 print(f'attack [{selection_name}]*[{connection_name}]')
                 for perturbation_rate in [0.05]:#, 0.075, 0.10, 0.15, 0.20]:
-                    if selection_name == 'random' or connection_name == 'random':
-                        seed_range = 10
-                    else:
-                        seed_range = 1
-                    for seed in range(seed_range):
+                    for seed in range(5 if (selection_name == 'random' or connection_name == 'random') else 1):
                         modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=seed)
                         
                         # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
