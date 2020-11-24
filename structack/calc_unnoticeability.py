@@ -340,6 +340,8 @@ def main():
                     acc = test(postprocessed_modified_adj, data, cuda, pre_test_data)
                     degre_noticeability, alpha_orig, alpha_new, ll_ratios = is_degree_unnoticeable(data.adj, modified_adj)
                     G_modified = nx.from_scipy_sparse_matrix(modified_adj)
+                    print(len(G_orig.edges))
+                    print(len(G_modified.edges))
                     degree_centralities_modified = np.array(list(nx.degree_centrality(G_modified).values()))
                     ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
                     

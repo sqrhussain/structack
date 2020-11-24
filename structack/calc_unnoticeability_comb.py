@@ -27,8 +27,8 @@ import networkx as nx
 
 
 def postprocess_adj(adj):
-    adj = normalize_adj(adj)
-    adj = sparse_mx_to_torch_sparse_tensor(adj)
+#     adj = normalize_adj(adj)
+#     adj = sparse_mx_to_torch_sparse_tensor(adj)
     return adj
 
 def attack_dice(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
@@ -233,7 +233,7 @@ def apply_structack(model, attack, data, ptb_rate, cuda, seed=0):
     # perform the attack
     modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
     elapsed = time.time() - tick
-    modified_adj = modified_adj.to(device)
+#     modified_adj = modified_adj.to(device)
     return modified_adj, elapsed
 
 def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
@@ -323,7 +323,7 @@ def calc_relative_diff(orig, mod, denominator_type):
         return np.nan_to_num(np.abs((mod-orig)/denominator))
     
 def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, adj, modified_adj):
-    G_modified = nx.from_scipy_sparse_matrix(to_scipy(modified_adj))
+    G_modified = nx.from_scipy_sparse_matrix(modified_adj)
     degree_centralities_modified = np.array(list(nx.degree_centrality(G_modified).values()))
     ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
                     
@@ -356,9 +356,9 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
         'selection':row['selection'], 
         'connection':row['connection'],
         'gcn_seed':row['gcn_seed'], 
-        'acc':row['acc'], 
         'perturbation_rate':row['perturbation_rate'],
         'elapsed':row['elapsed'],
+        'edge_count_diff':abs(G_orig.nodes-G_modified.edges)
         
         'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 
         'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
@@ -422,19 +422,21 @@ def main():
                 if cuda:
                     torch.cuda.manual_seed(split_seed)
                 data = Dataset(root='/tmp/', name=dataset)
+                G_orig = nx.from_scipy_sparse_matrix(data.adj)
+                degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
+                ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
                 for perturbation_rate in [0.05]: #,0.10,0.15,0.20]:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
-                        for gcn_seed in range(5):
-                            modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
+                        modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
 
-                            np.random.seed(gcn_seed)
-                            torch.manual_seed(gcn_seed)
-                            if cuda:
-                                torch.cuda.manual_seed(gcn_seed)
-                            acc = test(modified_adj, data, cuda, pre_test_data)
-                            row = {'dataset':dataset, 'attack':model_name, 'gcn_seed':gcn_seed, 'acc':acc,
-                                'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'attack_seed' :attack_seed,
+                            row = {
+                                'dataset':dataset, 
+                                'attack':model_name, 
+                                'perturbation_rate':perturbation_rate,
+                                'elapsed':elapsed, 
+                                'attack_seed' :attack_seed,
                                 'split_seed':split_seed}
+                            row = extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, data.adj, modified_adj)
                             print(row)
                             cdf = pd.DataFrame()
                             if os.path.exists(df_path):
@@ -474,9 +476,9 @@ def combination():
         for selection, selection_name in selection_options:
             for connection, connection_name in connection_options:
                 print(f'attack [{selection_name}]*[{connection_name}]')
-                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in [0.05]:#, 0.075, 0.10, 0.15, 0.20]:
                     if selection_name == 'random' or connection_name == 'random':
-                        seed_range = 5
+                        seed_range = 10
                     else:
                         seed_range = 1
                     for seed in range(seed_range):
