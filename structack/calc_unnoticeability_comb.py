@@ -58,10 +58,7 @@ def attack_structack2(model, adj, features, labels, n_perturbations, idx_train, 
     return postprocess_adj(modified_adj)
 
 def attack_structack2_greedy(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
-
-    
-    
-    
+    model.attack(adj, n_perturbations)
     modified_adj = model.modified_adj
     return postprocess_adj(modified_adj)
 
@@ -307,7 +304,7 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 def calc_wilcoxon(orig, mod):
     try:
-        _, p_value = wilcoxon(orig - mode)
+        _, p_value = wilcoxon(orig - mod)
     except:
         p_value = None
     return p_value
@@ -402,8 +399,8 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
 
 
 def main(args):
-    datasets = args['datasets']
-    df_path = args['output']
+    datasets = args.datasets
+    df_path = args.output
     
     attacks = [
         # [attack_random, 'Random', build_random],
@@ -424,7 +421,7 @@ def main(args):
                 G_orig = nx.from_scipy_sparse_matrix(data.adj)
                 degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
                 ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
-                for perturbation_rate in [0.05]: #,0.10,0.15,0.20]:
+                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
                         modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
 
@@ -445,8 +442,9 @@ def main(args):
 
 
 def combination(args):
-    datasets = args['datasets']
-    df_path = args['output']
+    datasets = args.datasets
+    df_path = args.output
+    print(datasets)
     
     selection_options = [
                 [ns.get_random_nodes,'random'],
@@ -474,7 +472,7 @@ def combination(args):
         for selection, selection_name in selection_options:
             for connection, connection_name in connection_options:
                 print(f'attack [{selection_name}]*[{connection_name}]')
-                for perturbation_rate in [0.05]:#, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                     for seed in range(5 if (selection_name == 'random' or connection_name == 'random') else 1):
                         modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=seed)
                         
@@ -552,7 +550,7 @@ cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
     args = parse_args()
-    if args['approach_type'] == 'baseline':
+    if args.approach_type == 'baseline':
         main(args)
-    elif args['approach_type'] == 'structack':
+    elif args.approach_type == 'structack':
         combination(args)
