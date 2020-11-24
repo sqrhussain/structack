@@ -56,9 +56,10 @@ def distance_hungarian_connection(adj, nodes, n_perturbations):
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
-def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000):
+def katz_hungarian_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
+    cols = nodes[n_perturbations:]
     D = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
     D_inv = spalg.inv(D)
     D_invA = D_inv * adj
@@ -75,15 +76,28 @@ def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=1000
         if diff < threshold:
             break
         print('Number of steps taken: ' + str(i))
-    cols = []
-    for i in rows:
-        cols.append(np.argmin(sigma[i, :].todense(), axis=1)[0,0])
-    return [[u, v] for u, v in zip(rows, cols)]
+    sigma = sigma.toarray().astype('float')
+
+    similarity = {u: {v: sigma[u][v] for v in cols} for u in rows}
+
+    mtx = np.array([np.array(list(similarity[u].values())) for u in similarity])
+
+    i_u = {i: u for i, u in enumerate(similarity)}
+    i_v = {i: v for i, v in enumerate(similarity[list(similarity.keys())[0]])}
+
+    u, v = linear_sum_assignment(+mtx)
+
+    return [[i_u[i], i_v[j]] for i, j in zip(u, v)] 
+    # cols = []
+    # for i in rows:
+    #     cols.append(np.argmin(sigma[i, :].todense(), axis=1)[0,0])
+    # return [[u, v] for u, v in zip(rows, cols)]
 
 
-def community_connection(adj, nodes, n_perturbations):
+def community_hungarian_connection(adj, nodes, n_perturbations):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
+    cols = nodes[n_perturbations:]
 
     node_community_mapping = community.community_louvain.best_partition(graph)
     
@@ -119,14 +133,25 @@ def community_connection(adj, nodes, n_perturbations):
     adj_community = sp.csr_matrix((adj_community_data, (adj_community_rows, adj_community_cols)))
     adj_community = adj_community.toarray().astype('float')
 
-    distant_communities = {}
-    for community_id in range(adj_community.shape[0]):
-        distant_community_id = np.random.choice(np.argwhere(adj_community[community_id,:]==np.min(adj_community[community_id,:])).flatten(), 1)[0]
-        distant_communities[community_id] = distant_community_id
+    similarity = {u: {v: adj_community[node_community_mapping[u]][node_community_mapping[v]] for v in cols} for u in rows}
 
-    cols = []
-    for node_id in rows:
-        community_id = node_community_mapping[node_id]
-        distant_community_id = distant_communities[community_id]
-        cols.append(np.random.choice(community_node_mapping[distant_community_id], 1)[0])
-    return [[u, v] for u, v in zip(rows, cols)]
+    mtx = np.array([np.array(list(similarity[u].values())) for u in similarity])
+
+    i_u = {i: u for i, u in enumerate(similarity)}
+    i_v = {i: v for i, v in enumerate(similarity[list(similarity.keys())[0]])}
+
+    u, v = linear_sum_assignment(+mtx)
+
+    return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
+
+    # distant_communities = {}
+    # for community_id in range(adj_community.shape[0]):
+    #     distant_community_id = np.argwhere(adj_community[community_id,:]==np.min(adj_community[community_id,:])).flatten()
+    #     distant_communities[community_id] = distant_community_id
+
+    # cols = []
+    # for node_id in rows:
+    #     community_id = node_community_mapping[node_id]
+    #     distant_community_id = distant_communities[community_id]
+    #     cols.append(np.random.choice(community_node_mapping[distant_community_id], 1)[0])
+    # return [[u, v] for u, v in zip(rows, cols)]
