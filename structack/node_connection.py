@@ -77,18 +77,23 @@ def katz_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=1000
         print('Number of steps taken: ' + str(i))
     cols = []
     for i in rows:
-        cols.append(np.sort(sigma[i, :].nonzero()[1])[
-                        sigma[sigma[i, :].nonzero()[0], np.sort(sigma[i, :].nonzero()[1])].argmin()])
-    return [[u, v] for u, v in zip(rows, cols)]    
-    
+        cols.append(np.argmin(sigma[i, :].todense(), axis=1)[0,0])
+    return sigma, [[u, v] for u, v in zip(rows, cols)]
+
 
 def community_connection(adj, nodes, n_perturbations):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
 
     node_community_mapping = community.community_louvain.best_partition(graph)
+    
     community_node_mapping = {}
     community_edge_counts = {}
+    communities = list(set(node_community_mapping.values()))
+    for source_community in communities:
+        for target_community in communities:
+            community_edge_counts[(source_community, target_community)] = 0
+            community_edge_counts[(target_community, source_community)] = 0
 
     for edge in graph.edges:
         if node_community_mapping[edge[0]] not in community_node_mapping:
@@ -99,12 +104,6 @@ def community_connection(adj, nodes, n_perturbations):
             community_node_mapping[node_community_mapping[edge[0]]].append(edge[0])
         if edge[1] not in community_node_mapping[node_community_mapping[edge[1]]]:
             community_node_mapping[node_community_mapping[edge[1]]].append(edge[1])
-        if node_community_mapping[edge[0]] == node_community_mapping[edge[1]]:
-            continue
-        if (node_community_mapping[edge[0]], node_community_mapping[edge[1]]) not in community_edge_counts:
-            community_edge_counts[(node_community_mapping[edge[0]], node_community_mapping[edge[1]])] = 0
-        if (node_community_mapping[edge[1]], node_community_mapping[edge[0]]) not in community_edge_counts:
-            community_edge_counts[(node_community_mapping[edge[1]], node_community_mapping[edge[0]])] = 0
         community_edge_counts[(node_community_mapping[edge[0]], node_community_mapping[edge[1]])] += 1
         community_edge_counts[(node_community_mapping[edge[1]], node_community_mapping[edge[0]])] += 1
 
@@ -119,13 +118,10 @@ def community_connection(adj, nodes, n_perturbations):
 
     adj_community = sp.csr_matrix((adj_community_data, (adj_community_rows, adj_community_cols)))
     adj_community = adj_community.toarray().astype('float')
-    adj_community[adj_community == 0] = np.nan
 
     distant_communities = {}
     for community_id in range(adj_community.shape[0]):
-        distant_community_id = np.argpartition(adj_community[community_id], 1)[:1][0]
-        while distant_community_id == 0 or distant_community_id == community_id:
-            distant_community_id = np.random.choice(adj_community.shape[0], 1)[0]
+        distant_community_id = np.random.choice(np.argwhere(adj_community[community_id,:]==np.min(adj_community[community_id,:])).flatten(), 1)[0]
         distant_communities[community_id] = distant_community_id
 
     cols = []

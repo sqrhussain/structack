@@ -294,6 +294,26 @@ def is_difference_significant(p_value, threshold=0.05):
         return False
     else:
         return p_value < threshold
+    
+
+def calc_wilcoxon(orig, mod):
+    try:
+        _, p_value = wilcoxon(orig - mode)
+    except:
+        p_value = None
+    return p_value
+
+def calc_relative_change(orig, mod):
+    return np.nan_to_num(np.abs((mod-orig)/orig))
+
+def calc_relative_diff(orig, mod, denominator_type):
+    if denominator_type == 'max':
+        return np.abs((mod-orig)/np.array([max(z) for z in map(lambda x, y:(x,y), orig, mod)]))
+    elif denominator_type == 'min':
+        return np.abs((mod-orig)/np.array([min(z) for z in map(lambda x, y:(x,y), orig, mod)]))
+    elif denominator_type == 'mean':
+        return np.abs((mod-orig)/((mod+orig)/2))
+
 
 
 def main():
@@ -314,26 +334,32 @@ def main():
             degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
             ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
             
-            for perturbation_rate in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20]:
+            for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                 for seed in range(5):
                     postprocessed_modified_adj, elapsed, modified_adj = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed)
                     acc = test(postprocessed_modified_adj, data, cuda, pre_test_data)
                     degre_noticeability, alpha_orig, alpha_new, ll_ratios = is_degree_unnoticeable(data.adj, modified_adj)
                     G_modified = nx.from_scipy_sparse_matrix(modified_adj)
+                    print(len(G_orig.edges))
+                    print(len(G_modified.edges))
                     degree_centralities_modified = np.array(list(nx.degree_centrality(G_modified).values()))
                     ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
-                    try:
-                        _, p_value_degree_centralities_difference(degree_centralities_orig - degree_centralities_modified)
-                    except:
-                        p_value_degree_centralities_difference = None
-                    try:
-                        _, p_value_ccoefs_difference = wilcoxon(ccoefs_orig - ccoefs_modified)
-                    except:
-                        p_value_ccoefs_difference = None
-                    relative_degree_change = np.abs(degree_centralities_modified/degree_centralities_orig - np.ones(len(degree_centralities_orig)))
-                    relative_ccoefs_change = np.nan_to_num(np.abs(ccoefs_modified/ccoefs_orig - np.ones(len(ccoefs_orig))))
-                    relative_degree_assortativity_change = abs(nx.degree_assortativity_coefficient(G_modified)/nx.degree_assortativity_coefficient(G_orig) - 1)
                     
+                    p_value_degree_centralities_difference = calc_wilcoxon(degree_centralities_orig, degree_centralities_modified)
+                    p_value_ccoefs_difference = calc_wilcoxon(ccoefs_orig, ccoefs_modified)
+                        
+                    relative_degree_change = calc_relative_change(degree_centralities_orig, degree_centralities_modified)
+                    relative_ccoefs_change = calc_relative_change(ccoefs_orig, ccoefs_modified)
+                    
+                    relative_degree_diff_min = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'min')
+                    relative_degree_diff_max = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'max')
+                    relative_degree_diff_mean = calc_relative_diff(degree_centralities_orig, degree_centralities_modified, 'mean')
+                    
+                    relative_ccoefs_diff_min = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'min')
+                    relative_ccoefs_diff_max = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'max')
+                    relative_ccoefs_diff_mean = calc_relative_diff(ccoefs_orig, ccoefs_modified, 'mean')
+                    
+                    relative_degree_assortativity_change = calc_relative_change(nx.degree_assortativity_coefficient(G_orig), nx.degree_assortativity_coefficient(G_modified))
 
                     
                     dc_pearson_correlation, dc_pearson_pvalue = pearsonr(degree_centralities_orig, degree_centralities_modified)
@@ -345,20 +371,49 @@ def main():
                     cc_spearman_correlation, cc_spearman_pvalue = spearmanr(ccoefs_orig, ccoefs_modified)
                     cc_kendall_correlation, cc_kendall_pvalue = kendalltau(ccoefs_orig, ccoefs_modified)
                     cc_kstest_statistic, cc_kstest_pvalue = stats.ks_2samp(ccoefs_orig, ccoefs_modified)
+                    
+                    print(len(G_orig.nodes))
+                    print(len(G_orig.edges))
+                    print(len(G_modified.nodes))
+                    print(len(G_modified.edges))
                         
-                    row = {'dataset':dataset, 'attack':model_name, 'seed':seed, 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'acc':None,
-                           'is_degree_unnoticeable':degre_noticeability, 'alpha_original':alpha_orig, 'alpha_modified':alpha_new, 'final_test_statistic':ll_ratios,
-                           'mean_clustering_coef_orig':np.mean(ccoefs_orig), 'mean_clustering_coef_modified':np.mean(ccoefs_modified), 
-                           'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 'p_value_ccoefs_difference':p_value_ccoefs_difference,
-                           'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
-                           'degree_centralities_difference_unnoticeable':not is_difference_significant(p_value_degree_centralities_difference), 'p_value_degree_centralities_difference':p_value_degree_centralities_difference,
-                           'ccoefs_pearson_correlation':cc_pearson_correlation, 'ccoefs_pearson_pvalue':cc_pearson_pvalue,
-                            'ccoefs_spearman_correlation':cc_spearman_correlation, 'ccoefs_spearman_pvalue':cc_spearman_pvalue,
-                            'ccoefs_kendall_correlation':cc_kendall_correlation, 'ccoefs_kendall_pvalue':cc_kendall_pvalue,
-                            'ccoefs_kstest_statistic':cc_kstest_statistic, 'ccoefs_kstest_pvalue':cc_kstest_pvalue,
-                            'mean_relative_degree_change_all_nodes':np.mean(relative_degree_change), 'mean_relative_degree_change_perturbed_nodes':np.nanmean(np.where(relative_degree_change!=0,relative_degree_change,np.nan),0),
-                            'mean_relative_ccoefs_change_all_nodes':np.mean(relative_ccoefs_change), 'mean_relative_ccoefs_change_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_change!=0,relative_ccoefs_change,np.nan),0),
-                            'relative_degree_assortativity_change':relative_degree_assortativity_change}
+                    row = {'dataset':dataset, 
+                           'attack':model_name, 
+                           'seed':seed, 
+                           'perturbation_rate':perturbation_rate,
+                           'elapsed':elapsed, 
+                           'acc':acc,
+                           'is_degree_unnoticeable':degre_noticeability, 
+                           'alpha_original':alpha_orig, 
+                           'alpha_modified':alpha_new,
+                           'final_test_statistic':ll_ratios,
+                           'mean_clustering_coef_orig':np.mean(ccoefs_orig), 
+                           'mean_clustering_coef_modified':np.mean(ccoefs_modified), 
+                           'ccoef_difference_unnoticeable':not is_difference_significant(p_value_ccoefs_difference), 
+                           'p_value_ccoefs_difference':p_value_ccoefs_difference,
+                           'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 
+                           'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
+                           'degree_centralities_difference_unnoticeable':not is_difference_significant(p_value_degree_centralities_difference),
+                           'p_value_degree_centralities_difference':p_value_degree_centralities_difference,
+                           'ccoefs_pearson_correlation':cc_pearson_correlation, 
+                           'ccoefs_pearson_pvalue':cc_pearson_pvalue,
+                           'ccoefs_spearman_correlation':cc_spearman_correlation, 
+                           'ccoefs_spearman_pvalue':cc_spearman_pvalue,
+                           'ccoefs_kendall_correlation':cc_kendall_correlation, 
+                           'ccoefs_kendall_pvalue':cc_kendall_pvalue,
+                           'ccoefs_kstest_statistic':cc_kstest_statistic, 
+                           'ccoefs_kstest_pvalue':cc_kstest_pvalue,
+                           'mean_relative_degree_change_all_nodes':np.mean(relative_degree_change),
+                           'mean_relative_degree_change_perturbed_nodes':np.nanmean(np.where(relative_degree_change!=0,relative_degree_change,np.nan),0),
+                           'mean_relative_ccoefs_change_all_nodes':np.mean(relative_ccoefs_change),
+                           'mean_relative_ccoefs_change_perturbed_nodes':np.nanmean(np.where(relative_ccoefs_change!=0,relative_ccoefs_change,np.nan),0),
+                           'relative_degree_assortativity_change':relative_degree_assortativity_change,
+                           'mean_relative_degree_diff_min':np.mean(relative_degree_diff_min),
+                           'mean_relative_degree_diff_max':np.mean(relative_degree_diff_max),
+                           'mean_relative_degree_diff_mean':np.mean(relative_degree_diff_mean),
+                           'mean_relative_ccoefs_diff_min':np.mean(relative_ccoefs_diff_min),
+                           'mean_relative_ccoefs_diff_max':np.mean(relative_ccoefs_diff_max),
+                           'mean_relative_ccoefs_diff_mean':np.mean(relative_ccoefs_diff_mean)}
 
                     print(row)
                     cdf = pd.DataFrame()
