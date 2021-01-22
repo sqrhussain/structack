@@ -7,6 +7,8 @@ import community
 from structack.bfs import bfs
 import scipy.sparse as sp
 import scipy.sparse.linalg as spalg
+import json
+import os
 
 
 def sorted_connection(adj, nodes, n_perturbations, dataset_name=None):
@@ -26,6 +28,13 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
+    precomputed_path = f'data/tmp/{dataset_name}_distance.json'
+    if dataset_name is not None and os.path.exists(precomputed_path):
+        print("Loading precomputed_distance...")
+        with open(precomputed_path,'r') as ff:
+            precomputed_distance = json.load(ff)
+    else:
+        precomputed_distance = {}
 
     tick = time.time()
     # dgl_graph = dgl.from_networkx(graph)
@@ -39,8 +48,10 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     # distance = {u:{v.item():i for i,lvl in enumerate(bfs_nodes[u]) for v in lvl} for u in rows}
     # distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
 
-    distance = bfs(graph, rows)  # = {u:nx.single_source_shortest_path_length(graph,u) for u in rows}
-    distance = {u: {v: distance[u][v] for v in cols} for u in rows}
+    new_rows = [u for u in rows if u not in precomputed_distance]
+    new_distances = bfs(graph, new_rows)
+    precomputed_distance = {**precomputed_distance, **new_distances}
+    distance = {u: {v: precomputed_distance[u][v] for v in cols} for u in rows}
     print(f'distance_connection: computed distance in {time.time() - tick}')
 
     tick = time.time()
@@ -53,6 +64,8 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     print(f'distance_connection: computed assignment in {time.time() - tick}')
 
     tick = time.time()
+    with open(f'data/tmp/{dataset_name}_distance.json','w') as ff:
+        precomputed_distance = json.dump(precomputed_distance, ff)
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
