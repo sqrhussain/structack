@@ -9,6 +9,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spalg
 import json
 import os
+import pickle
 
 
 def sorted_connection(adj, nodes, n_perturbations, dataset_name=None):
@@ -64,7 +65,7 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     print(f'distance_connection: computed assignment in {time.time() - tick}')
 
     tick = time.time()
-    with open(f'data/tmp/{dataset_name}_distance.json','w') as ff:
+    with open(precomputed_path,'w') as ff:
         precomputed_distance = json.dump(precomputed_distance, ff)
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
@@ -73,23 +74,30 @@ def katz_hungarian_connection(adj, nodes, n_perturbations, threshold=0.000001, n
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
-    D = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
-    D_inv = spalg.inv(D)
-    D_invA = D_inv * adj
-    l,v = spalg.eigs(D_invA, k=1, which="LR")
-    lmax = l[0].real
-    alpha = (1/lmax) * 0.9
-    sigma = sp.csr_matrix(D_invA.shape, dtype=np.float)
-    print('Calculate sigma matrix')
-    for i in range(nsteps):
-        sigma_new = alpha *D_invA*sigma + sp.identity(adj.shape[0], dtype=np.float, format='csr')
-        diff = abs(spalg.norm(sigma, 1) - spalg.norm(sigma_new, 1))
-        sigma = sigma_new
-        print(diff)
-        if diff < threshold:
-            break
-        print('Number of steps taken: ' + str(i))
-    sigma = sigma.toarray().astype('float')
+    precomputed_path = f'data/tmp/{dataset_name}_katz.pkl'
+    if dataset_name is not None and os.path.exists(precomputed_path):
+        print("Loading precomputed_katz...")
+        with open(precomputed_path,'r') as ff:
+            sigma = pickle.load(open(precomputed_path, 'rb'))
+    else:
+        D = nx.linalg.laplacianmatrix.laplacian_matrix(graph) + adj
+        D_inv = spalg.inv(D)
+        D_invA = D_inv * adj
+        l,v = spalg.eigs(D_invA, k=1, which="LR")
+        lmax = l[0].real
+        alpha = (1/lmax) * 0.9
+        sigma = sp.csr_matrix(D_invA.shape, dtype=np.float)
+        print('Calculate sigma matrix')
+        for i in range(nsteps):
+            sigma_new = alpha *D_invA*sigma + sp.identity(adj.shape[0], dtype=np.float, format='csr')
+            diff = abs(spalg.norm(sigma, 1) - spalg.norm(sigma_new, 1))
+            sigma = sigma_new
+            print(diff)
+            if diff < threshold:
+                break
+            print('Number of steps taken: ' + str(i))
+        sigma = sigma.toarray().astype('float')
+        pickle.dump(sigma, open(precomputed_path, "wb" ) )
 
     similarity = {u: {v: sigma[u][v] for v in cols} for u in rows}
 
@@ -112,7 +120,14 @@ def community_hungarian_connection(adj, nodes, n_perturbations, dataset_name=Non
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
 
-    node_community_mapping = community.community_louvain.best_partition(graph)
+    precomputed_path = f'data/tmp/{dataset_name}_communities.pkl'
+    if dataset_name is not None and os.path.exists(precomputed_path):
+        print("Loading precomputed_communities...")
+        with open(precomputed_path,'r') as ff:
+            node_community_mapping = pickle.load(open(precomputed_path, 'rb'))
+    else:
+        node_community_mapping = community.community_louvain.best_partition(graph)
+        pickle.dump(node_community_mapping, open(precomputed_path, "wb" ))
     
     community_node_mapping = {}
     community_edge_counts = {}
