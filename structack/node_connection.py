@@ -7,7 +7,7 @@ import community
 from structack.bfs import bfs
 import scipy.sparse as sp
 import scipy.sparse.linalg as spalg
-import json
+import pickle
 import os
 
 
@@ -28,11 +28,11 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
-    precomputed_path = f'data/tmp/{dataset_name}_distance.json'
+    precomputed_path = f'data/tmp/{dataset_name}_distance.pkl'
     if dataset_name is not None and os.path.exists(precomputed_path):
         print("Loading precomputed_distance...")
-        with open(precomputed_path,'r') as ff:
-            precomputed_distance = json.load(ff)
+        with open(precomputed_path,'rb') as ff:
+            precomputed_distance = pickle.load(ff)
     else:
         precomputed_distance = {}
 
@@ -64,8 +64,8 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     print(f'distance_connection: computed assignment in {time.time() - tick}')
 
     tick = time.time()
-    with open(f'data/tmp/{dataset_name}_distance.json','w') as ff:
-        precomputed_distance = json.dump(precomputed_distance, ff)
+    with open(f'data/tmp/{dataset_name}_distance.pkl','wb') as ff:
+        precomputed_distance = pickle.dump(precomputed_distance, ff)
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
