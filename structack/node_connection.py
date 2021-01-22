@@ -9,20 +9,20 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spalg
 
 
-def sorted_connection(adj, nodes, n_perturbations):
+def sorted_connection(adj, nodes, n_perturbations, dataset_name=None):
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
     return [[u, v] for u, v in zip(rows, cols)]
 
 
-def random_connection(adj, nodes, n_perturbations):
+def random_connection(adj, nodes, n_perturbations, dataset_name=None):
     np.random.shuffle(nodes)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
     return [[u, v] for u, v in zip(rows, cols)]
 
 
-def distance_hungarian_connection(adj, nodes, n_perturbations):
+def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
@@ -56,7 +56,7 @@ def distance_hungarian_connection(adj, nodes, n_perturbations):
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
-def katz_hungarian_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000):
+def katz_hungarian_connection(adj, nodes, n_perturbations, threshold=0.000001, nsteps=10000, dataset_name=None):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]
@@ -94,7 +94,7 @@ def katz_hungarian_connection(adj, nodes, n_perturbations, threshold=0.000001, n
     # return [[u, v] for u, v in zip(rows, cols)]
 
 
-def community_hungarian_connection(adj, nodes, n_perturbations):
+def community_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None):
     graph = nx.from_scipy_sparse_matrix(adj, create_using=nx.Graph)
     rows = nodes[:n_perturbations]
     cols = nodes[n_perturbations:]

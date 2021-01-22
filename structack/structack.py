@@ -55,10 +55,15 @@ def build_custom(node_selection, node_connection):
 
     class StructackTemp(StructackBase):
 
-        def node_selection(self, graph, n):
+        def __init__(self, dataset_name):
+            super(StructackTemp, self).__init__(None, None)
+            self.modified_adj = None
+            self.dataset_name = dataset_name
+
+        def node_selection(self, graph, n, dataset_name=dataset_name):
             return node_selection(graph, n)
 
-        def node_connection(self, adj, nodes, n_perturbations):
+        def node_connection(self, adj, nodes, n_perturbations, dataset_name=dataset_name):
             return node_connection(adj, nodes, n_perturbations)
 
     return StructackTemp()
