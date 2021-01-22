@@ -33,8 +33,8 @@ def parse_args():
     return parser.parse_args()
 
 def postprocess_adj(adj):
-#     adj = normalize_adj(adj)
-#     adj = sparse_mx_to_torch_sparse_tensor(adj)
+    adj = normalize_adj(adj)
+    adj = sparse_mx_to_torch_sparse_tensor(adj)
     return adj
 
 def attack_dice(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
@@ -269,7 +269,7 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
     # perform the attack
     modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
     elapsed = time.time() - tick
-    modified_adj = modified_adj.to(device)
+    modified_adj = to_scipy(modified_adj)
     return modified_adj, elapsed
 
 def pre_test_data(data,device):
@@ -350,14 +350,20 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
     dc_kstest_statistic, dc_kstest_pvalue = stats.ks_2samp(degree_centralities_orig, degree_centralities_modified)
     cc_kstest_statistic, cc_kstest_pvalue = stats.ks_2samp(ccoefs_orig, ccoefs_modified)
     
+    print(len(G_orig.nodes))
+    print(len(G_modified.nodes))
+    print(len(G_orig.edges))
+    print(len(G_modified.edges))
+    print(abs(len(G_orig.edges)-len(G_modified.edges)))
+    
     row = {
         'dataset':row['dataset'], 
-        'selection':row['selection'], 
-        'connection':row['connection'],
-        'gcn_seed':row['gcn_seed'], 
+        'attack':row['attack'],
+        'attack_seed':row['attack_seed'],
+        'split_seed':row['split_seed'],
         'perturbation_rate':row['perturbation_rate'],
         'elapsed':row['elapsed'],
-        'edge_count_diff':abs(len(G_orig.nodes)-len(G_modified.edges)),
+        'edge_count_diff':abs(len(G_orig.edges)-len(G_modified.edges)),
         
         'mean_degree_centralities_orig':np.mean(degree_centralities_orig), 
         'mean_degree_centralities_modified':np.mean(degree_centralities_modified), 
@@ -405,7 +411,7 @@ def main(args):
     attacks = [
         # [attack_random, 'Random', build_random],
         [attack_dice, 'DICE', build_dice],
-        [attack_mettaack, 'Metattack', build_mettack],
+#         [attack_mettaack, 'Metattack', build_mettack],
         [attack_pgd, 'PGD', build_pgd],
         [attack_minmax, 'MinMax', build_minmax],
     ]
@@ -421,10 +427,10 @@ def main(args):
                 G_orig = nx.from_scipy_sparse_matrix(data.adj)
                 degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
                 ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
-                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in [0.005]:#, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
                         modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
-
+                        print(type(modified_adj))
                         row = {
                             'dataset':dataset, 
                             'attack':model_name, 
@@ -434,17 +440,16 @@ def main(args):
                             'split_seed':split_seed}
                         row = extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, data.adj, modified_adj)
                         print(row)
-                        cdf = pd.DataFrame()
-                        if os.path.exists(df_path):
-                            cdf = pd.read_csv(df_path)
-                        cdf = cdf.append(row, ignore_index=True)
-                        cdf.to_csv(df_path,index=False)
+#                         cdf = pd.DataFrame()
+#                         if os.path.exists(df_path):
+#                             cdf = pd.read_csv(df_path)
+#                         cdf = cdf.append(row, ignore_index=True)
+#                         cdf.to_csv(df_path,index=False)
 
 
 def combination(args):
     datasets = args.datasets
     df_path = args.output
-    print(datasets)
     
     selection_options = [
                 [ns.get_random_nodes,'random'],
