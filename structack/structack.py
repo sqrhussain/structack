@@ -51,6 +51,18 @@ class StructackBase(BaseAttack):
         self.modified_adj = self.get_perturbed_adj(ori_adj, n_perturbations)
 
 
+def build_custom(node_selection, node_connection):
+
+    class StructackTemp(StructackBase):
+
+        def node_selection(self, graph, n):
+            return node_selection(graph, n)
+
+        def node_connection(self, adj, nodes, n_perturbations):
+            return node_connection(adj, nodes, n_perturbations)
+
+    return StructackTemp()
+
 # class StructackCustom(StructackBase):
 
 #     def __init__(self):

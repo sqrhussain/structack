@@ -6,7 +6,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
-from structack.structack import StructackBase
+from structack.structack import StructackBase, build_custom
 from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
 from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
 from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
@@ -206,18 +206,6 @@ def build_minmax(adj=None, features=None, labels=None, idx_train=None, device=No
     victim_model = victim_model.to(device)
     victim_model.fit(features, adj, labels, idx_train)
     return MinMax(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
-
-def build_custom(node_selection, node_connection):
-
-    class StructackTemp(StructackBase):
-
-        def node_selection(self, graph, n):
-            return node_selection(graph, n)
-
-        def node_connection(self, adj, nodes, n_perturbations):
-            return node_connection(adj, nodes, n_perturbations)
-
-    return StructackTemp()
 
 
 def apply_structack(model, attack, data, ptb_rate, cuda, seed=0):
