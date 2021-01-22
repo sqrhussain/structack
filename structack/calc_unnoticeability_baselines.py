@@ -33,8 +33,11 @@ def parse_args():
     return parser.parse_args()
 
 def postprocess_adj(adj):
-    adj = normalize_adj(adj)
-    adj = sparse_mx_to_torch_sparse_tensor(adj)
+    # adj = normalize_adj(adj)
+    # adj = sparse_mx_to_torch_sparse_tensor(adj)
+    if type(adj) is torch.Tensor:
+        adj = to_scipy(adj)
+    print(f'TYPE: {type(adj)}')
     return adj
 
 def attack_dice(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
@@ -91,12 +94,12 @@ def attack_mettaack(model, adj, features, labels, n_perturbations, idx_train, id
 
 def attack_pgd(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, n_perturbations)
-    return model.modified_adj
+    return postprocess_adj(model.modified_adj)
 
 
 def attack_minmax(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
     model.attack(features, adj, labels, idx_train, n_perturbations)
-    return model.modified_adj
+    return postprocess_adj(model.modified_adj)
 
 
 def attack_structack_eigenvector_centrality(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled):
@@ -259,7 +262,7 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
     n_perturbations = int(ptb_rate * (adj.sum()//2))
     print(f'n_perturbations = {n_perturbations}')
 
-    if model_builder == build_mettack:
+    if model_builder in [build_mettack, build_pgd, build_minmax]:
         adj, features, labels = preprocess(adj, features, labels, preprocess_adj=False)
 
     # build the model
@@ -269,7 +272,8 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
     # perform the attack
     modified_adj = attack(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)
     elapsed = time.time() - tick
-    modified_adj = to_scipy(modified_adj)
+
+    # modified_adj = to_scipy(modified_adj)
     return modified_adj, elapsed
 
 def pre_test_data(data,device):
