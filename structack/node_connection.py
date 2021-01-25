@@ -50,6 +50,7 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     # distance = {u:{v:distance[u][v] if v in distance[u] else self.INF for v in cols} for u in rows}
 
     new_rows = [u for u in rows if u not in precomputed_distance]
+    print(f'{len(new_rows)} distances to be computed' )
     new_distances = bfs(graph, new_rows)
     precomputed_distance = {**precomputed_distance, **new_distances}
     distance = {u: {v: precomputed_distance[u][v] for v in cols} for u in rows}
@@ -65,8 +66,9 @@ def distance_hungarian_connection(adj, nodes, n_perturbations, dataset_name=None
     print(f'distance_connection: computed assignment in {time.time() - tick}')
 
     tick = time.time()
-    with open(f'data/tmp/{dataset_name}_distance.pkl','wb') as ff:
-        precomputed_distance = pickle.dump(precomputed_distance, ff)
+    if dataset_name is not None:
+        with open(precomputed_path,'wb') as ff:
+            precomputed_distance = pickle.dump(precomputed_distance, ff)
     return [[i_u[i], i_v[j]] for i, j in zip(u, v)]
 
 
@@ -97,7 +99,8 @@ def katz_hungarian_connection(adj, nodes, n_perturbations, threshold=0.000001, n
                 break
             print('Number of steps taken: ' + str(i))
         sigma = sigma.toarray().astype('float')
-        pickle.dump(sigma, open(precomputed_path, "wb" ) )
+        if dataset_name is not None:
+            pickle.dump(sigma, open(precomputed_path, "wb" ) )
 
     similarity = {u: {v: sigma[u][v] for v in cols} for u in rows}
 
@@ -127,7 +130,8 @@ def community_hungarian_connection(adj, nodes, n_perturbations, dataset_name=Non
             node_community_mapping = pickle.load(open(precomputed_path, 'rb'))
     else:
         node_community_mapping = community.community_louvain.best_partition(graph)
-        pickle.dump(node_community_mapping, open(precomputed_path, "wb" ))
+        if dataset_name is not None:
+            pickle.dump(node_community_mapping, open(precomputed_path, "wb" ))
     
     community_node_mapping = {}
     community_edge_counts = {}
