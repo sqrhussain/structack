@@ -402,7 +402,7 @@ def main(args):
     
     attacks = [
         # [attack_random, 'Random', build_random],
-        [attack_dice, 'DICE', build_dice],
+#         [attack_dice, 'DICE', build_dice],
 #         [attack_mettaack, 'Metattack', build_mettack],
         [attack_pgd, 'PGD', build_pgd],
         [attack_minmax, 'MinMax', build_minmax],
@@ -419,7 +419,7 @@ def main(args):
                 G_orig = nx.from_scipy_sparse_matrix(data.adj)
                 degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
                 ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
-                for perturbation_rate in [0.005]:#, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
                         modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
                         print(type(modified_adj))
@@ -432,11 +432,11 @@ def main(args):
                             'split_seed':split_seed}
                         row = extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, data.adj, modified_adj)
                         print(row)
-#                         cdf = pd.DataFrame()
-#                         if os.path.exists(df_path):
-#                             cdf = pd.read_csv(df_path)
-#                         cdf = cdf.append(row, ignore_index=True)
-#                         cdf.to_csv(df_path,index=False)
+                        cdf = pd.DataFrame()
+                        if os.path.exists(df_path):
+                            cdf = pd.read_csv(df_path)
+                        cdf = cdf.append(row, ignore_index=True)
+                        cdf.to_csv(df_path,index=False)
 
 
 def combination(args):
