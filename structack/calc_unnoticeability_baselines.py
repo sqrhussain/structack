@@ -321,7 +321,7 @@ def calc_relative_diff(orig, mod, denominator_type, lala):
         return np.nan_to_num(np.abs((mod-orig)/denominator))
     
 def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_orig, adj, modified_adj):
-    G_modified = nx.from_scipy_sparse_matrix(modified_adj)
+    G_modified = nx.from_scipy_sparse_matrix(to_scipy(modified_adj))
     degree_centralities_modified = np.array(list(nx.degree_centrality(G_modified).values()))
     ccoefs_modified = np.array(list(nx.clustering(G_modified, nodes=G_orig.nodes, weight=None).values()))
                     
@@ -403,9 +403,9 @@ def main(args):
     attacks = [
         # [attack_random, 'Random', build_random],
 #         [attack_dice, 'DICE', build_dice],
-#         [attack_mettaack, 'Metattack', build_mettack],
-        [attack_pgd, 'PGD', build_pgd],
-        [attack_minmax, 'MinMax', build_minmax],
+        [attack_mettaack, 'Metattack', build_mettack],
+#         [attack_pgd, 'PGD', build_pgd],
+#         [attack_minmax, 'MinMax', build_minmax],
     ]
     for dataset in datasets:
         for attack, model_name, model_builder in attacks:
@@ -419,7 +419,7 @@ def main(args):
                 G_orig = nx.from_scipy_sparse_matrix(data.adj)
                 degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
                 ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
-                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in [0.001, 0.002, 0.003, 0.004]:#[0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
                         modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
                         print(type(modified_adj))

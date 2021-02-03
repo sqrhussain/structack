@@ -1,5 +1,7 @@
 import networkx as nx
 import numpy as np
+import pickle
+import os
 
 
 def get_random_nodes(graph, n, dataset_name=None):
@@ -31,10 +33,10 @@ def get_nodes_with_lowest_eigenvector_centrality(graph, n, dataset_name=None):
         with open(precomputed_path,'r') as ff:
             eigenvector_centralities = pickle.load(open(precomputed_path, 'rb'))
     else:
-        eigenvector_centralities = nx.eigenvector_centrality(graph).items()
+        eigenvector_centralities = nx.eigenvector_centrality(graph)
         pickle.dump(eigenvector_centralities, open(precomputed_path, "wb" ) )
         
-    nodes = sorted(eigenvector_centralities, key=lambda x: x[1])
+    nodes = sorted(eigenvector_centralities.items(), key=lambda x: x[1])
     if len(nodes) < n:  # repeat the list until it's longer than n
         nodes *= int(n / len(nodes) + 1)
     nodes = nodes[:n]
@@ -48,10 +50,10 @@ def get_nodes_with_lowest_betweenness_centrality(graph, n, dataset_name=None):
         with open(precomputed_path,'r') as ff:
             betweenness_centralities = pickle.load(open(precomputed_path, 'rb'))
     else:
-        betweenness_centralities = nx.betweenness_centrality(graph).items()
+        betweenness_centralities = nx.betweenness_centrality(graph)
         pickle.dump(betweenness_centralities, open(precomputed_path, "wb" ) )
         
-    nodes = sorted(betweenness_centralities, key=lambda x: x[1])
+    nodes = sorted(betweenness_centralities.items(), key=lambda x: x[1])
     if len(nodes) < n:  # repeat the list until it's longer than n
         nodes = nodes * int(n / len(nodes) + 1)
     nodes = nodes[:n]
@@ -65,10 +67,10 @@ def get_nodes_with_lowest_closeness_centrality(graph, n, dataset_name=None):
         with open(precomputed_path,'r') as ff:
             closeness_centralities = pickle.load(open(precomputed_path, 'rb'))
     else:
-        closeness_centralities = nx.closeness_centrality(graph).items()
+        closeness_centralities = nx.closeness_centrality(graph)
         pickle.dump(closeness_centralities, open(precomputed_path, "wb" ) )
         
-    nodes = sorted(closeness_centralities, key=lambda x: x[1])
+    nodes = sorted(closeness_centralities.items(), key=lambda x: x[1])
     if len(nodes) < n:  # repeat the list until it's longer than n
         nodes *= int(n / len(nodes) + 1)
     nodes = nodes[:n]
@@ -82,10 +84,10 @@ def get_nodes_with_lowest_pagerank(graph, n, dataset_name=None):
         with open(precomputed_path,'r') as ff:
             pageranks = pickle.load(open(precomputed_path, 'rb'))
     else:
-        pageranks = nx.pagerank(graph).items()
+        pageranks = nx.pagerank(graph)
         pickle.dump(pageranks, open(precomputed_path, "wb" ) )
         
-    nodes = sorted(pageranks, key=lambda x: x[1])
+    nodes = sorted(pageranks.items(), key=lambda x: x[1])
     if len(nodes) < n:  # repeat the list until it's longer than n
         nodes *= int(n / len(nodes) + 1)
     nodes = nodes[:n]
