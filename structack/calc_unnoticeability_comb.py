@@ -392,8 +392,8 @@ def main(args):
     
     attacks = [
         # [attack_random, 'Random', build_random],
-        [attack_dice, 'DICE', build_dice],
-        [attack_mettaack, 'Metattack', build_mettack],
+        # [attack_dice, 'DICE', build_dice],
+        # [attack_mettaack, 'Metattack', build_mettack],
         [attack_pgd, 'PGD', build_pgd],
         [attack_minmax, 'MinMax', build_minmax],
     ]

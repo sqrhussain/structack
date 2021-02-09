@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument('--datasets', nargs='+', default=['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed'], help='List of datasets to evaluate.')
     parser.add_argument('--output', nargs='?', default='reports/eval/comb_acc_eval_noticeability.csv', help='Evaluation results output filepath.')
     parser.add_argument('--approach_type', nargs='?', default='structack', help='Type of approaches to run [baseline/structack].')
+    parser.add_argument('--ptb', nargs='+', type=float, default=[0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20])
     return parser.parse_args()
 
 def postprocess_adj(adj):
@@ -399,12 +400,13 @@ def extend_row_with_noticeability(row, G_orig, degree_centralities_orig, ccoefs_
 def main(args):
     datasets = args.datasets
     df_path = args.output
+    perturbation_rates = args.ptb
     
     attacks = [
         # [attack_random, 'Random', build_random],
 #         [attack_dice, 'DICE', build_dice],
 #         [attack_mettaack, 'Metattack', build_mettack],
-        [attack_pgd, 'PGD', build_pgd],
+        # [attack_pgd, 'PGD', build_pgd],
         [attack_minmax, 'MinMax', build_minmax],
     ]
     for dataset in datasets:
@@ -419,7 +421,7 @@ def main(args):
                 G_orig = nx.from_scipy_sparse_matrix(data.adj)
                 degree_centralities_orig = np.array(list(nx.degree_centrality(G_orig).values()))
                 ccoefs_orig = np.array(list(nx.clustering(G_orig, nodes=G_orig.nodes, weight=None).values()))
-                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in perturbation_rates:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
                         modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
                         print(type(modified_adj))
@@ -491,58 +493,7 @@ def combination(args):
                         cdf = cdf.append(row, ignore_index=True)
                         cdf.to_csv(df_path,index=False)
 
-# The following lists should be correspondent
 
-
-
-# attacks = [
-#     attack_random,
-#     attack_dice,
-#     # attack_structack_fold, 
-#     # attack_structack_only_distance,
-#     # attack_structack_distance,
-#     attack_mettaack,
-#     attack_pgd,
-#     attack_minmax,
-#     # attack_structack,
-#     # attack_structack, 
-#     # attack_structack, 
-#     # attack_structack,
-#     # attack_structack,
-#     # attack_structack,
-# ]
-# model_names = [
-#     'Random',
-#     'DICE',
-#     # 'StructackGreedyFold', # this is StructackDegree in the paper
-#     # 'StructackOnlyDistance', # this is StructackDistance in the paper
-#     # 'StructackDistance', # this is Structack in the paper
-#     'Metattack',
-#     'PGD',
-#     'MinMax',
-#     # 'StructackEigenvectorCentrality',
-#     # 'StructackBetweennessCentrality',
-#     # 'StructackClosenessCentrality',
-#     # 'StructackPageRank',
-#     # 'StructackKatzSimilarity',
-#     # 'StructackCommunity',
-# ]
-# model_builders = [
-#     build_random,
-#     build_dice,
-#     # build_structack_fold,
-#     # build_structack_only_distance,
-#     # build_structack_distance,
-#     build_mettack,
-#     build_pgd,
-#     build_minmax,
-#     # build_structack_eigenvector_centrality, 
-#     # build_structack_betweenness_centrality, 
-#     # build_structack_closeness_centrality, 
-#     # build_structack_pagerank,
-#     # build_structack_katz_similarity,
-#     # build_structack_community,
-# ]
 cuda = torch.cuda.is_available()
 
 if __name__ == '__main__':
