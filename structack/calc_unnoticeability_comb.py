@@ -27,7 +27,7 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run structack.")
-    parser.add_argument('--datasets', nargs='+', default=['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed'], help='List of datasets to evaluate.')
+    parser.add_argument('--datasets', nargs='+', default=['polblogs', 'pubmed'], help='List of datasets to evaluate.')
     parser.add_argument('--output', nargs='?', default='reports/eval/comb_acc_eval_noticeability.csv', help='Evaluation results output filepath.')
     parser.add_argument('--approach_type', nargs='?', default='structack', help='Type of approaches to run [baseline/structack].')
     return parser.parse_args()
@@ -460,9 +460,9 @@ def combination(args):
         for selection, selection_name in selection_options:
             for connection, connection_name in connection_options:
                 print(f'attack [{selection_name}]*[{connection_name}]')
-                for perturbation_rate in [0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
+                for perturbation_rate in [0.001, 0.002, 0.003, 0.004]:#[0.0005, 0.001]:#[0.005, 0.0075, 0.01, 0.025,0.05, 0.075, 0.10, 0.15, 0.20]:
                     for seed in range(5 if (selection_name == 'random' or connection_name == 'random') else 1):
-                        modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=seed)
+                        modified_adj, elapsed = apply_structack(build_custom(selection, connection, dataset_name=dataset), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=seed)
                         
                         # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
                         data = Dataset(root='/tmp/', name=dataset)
