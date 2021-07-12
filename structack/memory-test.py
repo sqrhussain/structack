@@ -20,7 +20,7 @@ import time
 import argparse
 import os
 from memory_profiler import memory_usage
-
+import gc
 
 def postprocess_adj(adj):
     adj = normalize_adj(adj)
@@ -220,6 +220,12 @@ def apply_structack(model, attack, data, ptb_rate, cuda, seed=0):
     print(f'n_perturbations = {n_perturbations}')
 
     mem = max(memory_usage((attack,(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled))))
+    del adj
+    del features
+    del labels
+    del idx_train
+    del idx_unlabeled
+    gc.collect()
     return mem
 
 def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
@@ -245,62 +251,38 @@ def apply_perturbation(model_builder, attack, data, ptb_rate, cuda, seed=0):
     # build the model
     model = model_builder(adj, features, labels, idx_train, device)
         
-    mem = max(memory_usage((attack,(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled))))
+    mem = max(memory_usage((attack,(model, adj, features, labels, n_perturbations, idx_train, idx_unlabeled)),timeout=100))
+    del adj
+    del features
+    del labels
+    del idx_train
+    del idx_unlabeled
+    del model
+    gc.collect()
     return mem
 
-def pre_test_data(data,device):
-    features, labels = data.features, data.labels
-    idx_train, idx_val, idx_test = data.idx_train, data.idx_val, data.idx_test
-    idx_unlabeled = np.union1d(idx_val, idx_test)
-    _ , features, labels = preprocess(data.adj, features, labels, preprocess_adj=False, sparse=True, device=device)
-    return features, labels, idx_train, idx_val, idx_test
-
-def test_gcn(adj, data, cuda, data_prep,nhid=16):
-    ''' test on GCN '''
-    device = torch.device("cuda" if cuda else "cpu")
-    features, labels, idx_train, idx_val, idx_test = data_prep(data,device)
-
-    
-    gcn = GCN(nfeat=features.shape[1],
-              nhid=nhid,
-              nclass=labels.max().item() + 1,
-              dropout=0.5, device=device)
-
-    gcn = gcn.to(device)
-
-    optimizer = optim.Adam(gcn.parameters(),
-                           lr=0.01, weight_decay=5e-4)
-
-    gcn.fit(features, adj, labels, idx_train) # train without model picking
-    # gcn.fit(features, adj, labels, idx_train, idx_val) # train with validation model picking
-    output = gcn.output
-    loss_test = F.nll_loss(output[idx_test], labels[idx_test])
-    acc_test = accuracy(output[idx_test], labels[idx_test])
-
-    return acc_test.item()
 
 
-
-def main(datasets):
+def baseline(datasets):
 
     df_path = 'reports/eval/baseline-memory.csv'
     attacks = [
-        [attack_dice, 'DICE', build_dice],
+        # [attack_dice, 'DICE', build_dice],
         [attack_mettaack, 'Metattack', build_mettack],
-        [attack_pgd, 'PGD', build_pgd],
-        [attack_minmax, 'MinMax', build_minmax],
+        # [attack_pgd, 'PGD', build_pgd],
+        # [attack_minmax, 'MinMax', build_minmax],
     ]
     for dataset in datasets:
         for attack, model_name, model_builder in attacks:
             print('attack ' + model_name)
-            for split_seed in range(5):
+            for split_seed in range(1):
                 np.random.seed(split_seed)
                 torch.manual_seed(split_seed)
                 if cuda:
                     torch.cuda.manual_seed(split_seed)
                 data = Dataset(root='/tmp/', name=dataset)
                 for perturbation_rate in [0.05]: #,0.10,0.15,0.20]:
-                    for attack_seed in range(1 if model_name=='DICE' else 5):
+                    for attack_seed in range(1):
                         mem = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, attack_seed)
 
                         row = {'dataset':dataset, 'attack':model_name, 'attack_seed' :attack_seed,
@@ -311,6 +293,8 @@ def main(datasets):
                             cdf = pd.read_csv(df_path)
                         cdf = cdf.append(row, ignore_index=True)
                         cdf.to_csv(df_path,index=False)
+                del data
+                gc.collect()
 
 
 
@@ -336,7 +320,7 @@ def combination(datasets):
 
     for selection, selection_name in selection_options:
         for connection, connection_name in connection_options:
-            if selection_name != 'random' and connection_name != 'random':
+            if selection_name == 'random' or connection_name == 'random':
                 continue
             for dataset in datasets:
 
@@ -365,7 +349,7 @@ def parse_args():
     return parser.parse_args()
 
 
-cuda = torch.cuda.is_available()
+cuda = False# torch.cuda.is_available()
     
 
 if __name__ == '__main__':
@@ -373,6 +357,6 @@ if __name__ == '__main__':
     if args.approach_type == 'structack':
         combination(args.datasets)
     elif args.approach_type == 'baseline':
-        main(args.datasets)
+        baseline(args.datasets)
     elif args.approach_type == 'clean':
         clean(args.datasets)

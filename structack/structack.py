@@ -132,61 +132,61 @@ class StructackDegree(StrcutackDegreeBase):
         return nc.sorted_connection(adj, nodes, n_perturbations)
 
 
-class StructackEigenvectorCentrality(StrcutackDegreeBase):
+# class StructackEigenvectorCentrality(StrcutackDegreeBase):
 
-    def __init__(self):
-        super(StructackEigenvectorCentrality, self).__init__()
-        self.modified_adj = None
+#     def __init__(self):
+#         super(StructackEigenvectorCentrality, self).__init__()
+#         self.modified_adj = None
 
-    def node_selection(self, graph, n):
-        return ns.get_nodes_with_lowest_eigenvector_centrality(graph, n)
-
-
-class StructackBetweennessCentrality(StrcutackDegreeBase):
-
-    def __init__(self):
-        super(StructackBetweennessCentrality, self).__init__()
-        self.modified_adj = None
-
-    def node_selection(self, graph, n):
-        return ns.get_nodes_with_lowest_betweenness_centrality(graph, n)
+#     def node_selection(self, graph, n):
+#         return ns.get_nodes_with_lowest_eigenvector_centrality(graph, n)
 
 
-class StructackClosenessCentrality(StructackBase):
-    def __init__(self):
-        super(StructackClosenessCentrality, self).__init__()
-        self.modified_adj = None
+# class StructackBetweennessCentrality(StrcutackDegreeBase):
 
-    def node_selection(self, graph, n):
-        return ns.get_nodes_with_lowest_closeness_centrality(graph, n)
+#     def __init__(self):
+#         super(StructackBetweennessCentrality, self).__init__()
+#         self.modified_adj = None
 
-
-class StructackPageRank(StructackBase):
-    def __init__(self):
-        super(StructackPageRank, self).__init__()
-        self.modified_adj = None
-
-    def node_selection(self, graph, n):
-        return ns.get_nodes_with_lowest_pagerank(graph, n)
+#     def node_selection(self, graph, n):
+#         return ns.get_nodes_with_lowest_betweenness_centrality(graph, n)
 
 
-class StructackKatzSimilarity(StructackBase):
-    def __init__(self):
-        super(StructackKatzSimilarity, self).__init__()
-        self.modified_adj = None
+# class StructackClosenessCentrality(StructackBase):
+#     def __init__(self):
+#         super(StructackClosenessCentrality, self).__init__()
+#         self.modified_adj = None
 
-    def node_connection(self, adj, nodes, n_perturbations):
-        return nc.katz_connection(adj, nodes, n_perturbations)
+#     def node_selection(self, graph, n):
+#         return ns.get_nodes_with_lowest_closeness_centrality(graph, n)
+
+
+# class StructackPageRank(StructackBase):
+#     def __init__(self):
+#         super(StructackPageRank, self).__init__()
+#         self.modified_adj = None
+
+#     def node_selection(self, graph, n):
+#         return ns.get_nodes_with_lowest_pagerank(graph, n)
+
+
+# class StructackKatzSimilarity(StructackBase):
+#     def __init__(self):
+#         super(StructackKatzSimilarity, self).__init__()
+#         self.modified_adj = None
+
+#     def node_connection(self, adj, nodes, n_perturbations):
+#         return nc.katz_connection(adj, nodes, n_perturbations)
 
 
 
-class StructackCommunity(StructackBase):
-    def __init__(self):
-        super(StructackCommunity, self).__init__()
-        self.modified_adj = None
+# class StructackCommunity(StructackBase):
+#     def __init__(self):
+#         super(StructackCommunity, self).__init__()
+#         self.modified_adj = None
 
-    def node_connection(self, adj, nodes, n_perturbations):
-        return nc.community_connection(adj, nodes, n_perturbations)
+#     def node_connection(self, adj, nodes, n_perturbations):
+#         return nc.community_connection(adj, nodes, n_perturbations)
 
 
 class StructackDistance(StructackBase):

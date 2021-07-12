@@ -1,5 +1,6 @@
 
 import torch
+import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 import torch.optim as optim
@@ -7,15 +8,16 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
-from structack.structack import StructackBase
-from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
-from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
-from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
+from structack.structack import StructackBase, build_custom
+# from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
+# from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
+# from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
 import structack.node_selection as ns
 import structack.node_connection as nc
 # from structack.calc_unnoticeability import *
 import pandas as pd
 import time
+import argparse
 import os
 
 
@@ -166,16 +168,22 @@ def build_mettack(adj=None, features=None, labels=None, idx_train=None, device=N
             dropout=0.5, with_relu=False, with_bias=True, weight_decay=5e-4, device=device)
     surrogate = surrogate.to(device)
     surrogate.fit(features, adj, labels, idx_train)
-    
+    # print(torch.cuda.current_device())
+    print(f'{torch.cuda.device_count()} GPUs available')
+    print('built surrogate')
     model = Metattack(model=surrogate, nnodes=adj.shape[0], feature_shape=features.shape,
             attack_structure=True, attack_features=False, device=device, lambda_=lambda_)
+    print('built model')
+    # if adj.shape[0] > 12000:
+    #      model = nn.DataParallel(model)
     model = model.to(device)
+    print('to device')
     return model
 
 
 def build_pgd(adj=None, features=None, labels=None, idx_train=None, device=None):
     # Setup Victim Model
-    victim_model = GCN(nfeat=features.shape[1], nclass=labels.max().item()+1, nhid=16,
+    victim_model = GCN(nfeat=features.shape[1], nclass=labels.max().item()+1, nhid=8,
             dropout=0.5, weight_decay=5e-4, device=device)
 
     victim_model = victim_model.to(device)
@@ -184,24 +192,13 @@ def build_pgd(adj=None, features=None, labels=None, idx_train=None, device=None)
 
 def build_minmax(adj=None, features=None, labels=None, idx_train=None, device=None):
     # Setup Victim Model
-    victim_model = GCN(nfeat=features.shape[1], nclass=labels.max().item()+1, nhid=16,
+    victim_model = GCN(nfeat=features.shape[1], nclass=labels.max().item()+1, nhid=8,
             dropout=0.5, weight_decay=5e-4, device=device)
 
     victim_model = victim_model.to(device)
     victim_model.fit(features, adj, labels, idx_train)
     return MinMax(model=victim_model, nnodes=adj.shape[0], loss_type='CE', device=device)
 
-def build_custom(node_selection, node_connection):
-
-    class StructackTemp(StructackBase):
-
-        def node_selection(self, graph, n):
-            return node_selection(graph, n)
-
-        def node_connection(self, adj, nodes, n_perturbations):
-            return node_connection(adj, nodes, n_perturbations)
-
-    return StructackTemp()
 
 
 def apply_structack(model, attack, data, ptb_rate, cuda, seed=0):
@@ -266,11 +263,12 @@ def pre_test_data(data,device):
     _ , features, labels = preprocess(data.adj, features, labels, preprocess_adj=False, sparse=True, device=device)
     return features, labels, idx_train, idx_val, idx_test
 
-def test(adj, data, cuda, data_prep,nhid=16):
+def test_gcn(adj, data, cuda, data_prep,nhid=16):
     ''' test on GCN '''
     device = torch.device("cuda" if cuda else "cpu")
     features, labels, idx_train, idx_val, idx_test = data_prep(data,device)
 
+    
     gcn = GCN(nfeat=features.shape[1],
               nhid=nhid,
               nclass=labels.max().item() + 1,
@@ -291,10 +289,8 @@ def test(adj, data, cuda, data_prep,nhid=16):
 
 
 
-def main():
+def main(datasets):
     df_path = 'reports/eval/baseline_eval.csv'
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs']
-    # datasets = ['cora']
     attacks = [
         # [attack_random, 'Random', build_random],
         [attack_dice, 'DICE', build_dice],
@@ -313,14 +309,14 @@ def main():
                 data = Dataset(root='/tmp/', name=dataset)
                 for perturbation_rate in [0.05]: #,0.10,0.15,0.20]:
                     for attack_seed in range(1 if model_name=='DICE' else 5):
+                        modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda, attack_seed)
                         for gcn_seed in range(5):
-                            modified_adj, elapsed = apply_perturbation(model_builder, attack, data, perturbation_rate, cuda and (dataset!='pubmed'), attack_seed)
 
                             np.random.seed(gcn_seed)
                             torch.manual_seed(gcn_seed)
                             if cuda:
                                 torch.cuda.manual_seed(gcn_seed)
-                            acc = test(modified_adj, data, cuda, pre_test_data)
+                            acc = test_gcn(modified_adj, data, cuda, pre_test_data)
                             row = {'dataset':dataset, 'attack':model_name, 'gcn_seed':gcn_seed, 'acc':acc,
                                 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'attack_seed' :attack_seed,
                                 'split_seed':split_seed}
@@ -332,30 +328,60 @@ def main():
                             cdf.to_csv(df_path,index=False)
 
 
-def combination():
+def clean(datasets):
+    df_path = 'reports/eval/clean.csv'
+    split_seeds = 5
+    gcn_seeds = 5
 
-    df_path = 'reports/eval/comb_acc_eval.csv'
+    for dataset in datasets:
+        ''' Clean graph evaluation '''
+        for split_seed in range(split_seeds):
+            np.random.seed(split_seed)
+            torch.manual_seed(split_seed)
+            if cuda:
+                torch.cuda.manual_seed(split_seed)
+            # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
+            data = Dataset(root='/tmp/', name=dataset)
+            for seed in range(gcn_seeds):
+
+                np.random.seed(seed)
+                torch.manual_seed(seed)
+                if cuda:
+                    torch.cuda.manual_seed(seed)
+                acc = test_gcn(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
+                            data, cuda, pre_test_data)
+                row = {'dataset':dataset, 'selection':'clean', 'connection':'clean',
+                        'gcn_seed':seed, 'acc':acc, 'perturbation_rate':0,'elapsed':0,
+                        'split_seed':split_seed}
+                print(row)
+                cdf = pd.DataFrame()
+                if os.path.exists(df_path):
+                    cdf = pd.read_csv(df_path)
+                cdf = cdf.append(row, ignore_index=True)
+                cdf.to_csv(df_path,index=False)
+
+def combination(datasets):
+
+    df_path = 'reports/eval/comb_acc_eval-new-datasets.csv'
 
     selection_options = [
-                [ns.get_random_nodes,'random'],
                 [ns.get_nodes_with_lowest_degree,'degree'],
                 [ns.get_nodes_with_lowest_pagerank,'pagerank'],
                 [ns.get_nodes_with_lowest_eigenvector_centrality,'eigenvector'],
                 [ns.get_nodes_with_lowest_betweenness_centrality,'betweenness'],
                 [ns.get_nodes_with_lowest_closeness_centrality,'closeness'],
+                [ns.get_random_nodes,'random'],
             ]
 
     connection_options = [
-                # [nc.random_connection,'random'],
-                # [nc.community_hungarian_connection,'community'],
-                # [nc.distance_hungarian_connection,'distance'],
+                [nc.community_hungarian_connection,'community'],
+                [nc.distance_hungarian_connection,'distance'],
                 [nc.katz_hungarian_connection,'katz'],
+                [nc.random_connection,'random'],
             ]
 
-    datasets = ['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed']
-    # datasets = ['cora']
-    split_seeds = 5
-    gcn_seeds = 5
+    split_seeds = 1
+    gcn_seeds = 1
     for selection, selection_name in selection_options:
         for connection, connection_name in connection_options:
             for dataset in datasets:
@@ -367,13 +393,13 @@ def combination():
                 #         torch.cuda.manual_seed(split_seed)
                 #     # reload the dataset with a different split (WARNING: this doesn't work for attack methods which depend on the split)
                 #     data = Dataset(root='/tmp/', name=dataset)
-                #     for seed in range(split_seeds):
+                #     for seed in range(gcn_seeds):
 
                 #         np.random.seed(seed)
                 #         torch.manual_seed(seed)
                 #         if cuda:
                 #             torch.cuda.manual_seed(seed)
-                #         acc = test(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
+                #         acc = test_gcn(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
                 #                     data, cuda, pre_test_data)
                 #         row = {'dataset':dataset, 'selection':'clean', 'connection':'clean',
                 #                 'gcn_seed':seed, 'acc':acc, 'perturbation_rate':0,'elapsed':0,
@@ -387,8 +413,8 @@ def combination():
 
                 data = Dataset(root='/tmp/', name=dataset)
                 print(f'attack [{selection_name}]*[{connection_name}]')
-                for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
-                    modified_adj, elapsed = apply_structack(build_custom(selection, connection), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
+                for perturbation_rate in [0.01]:#,0.10,0.15,0.20]:
+                    modified_adj, elapsed = apply_structack(build_custom(selection, connection, dataset), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
                     for split_seed in range(split_seeds):
                         np.random.seed(split_seed)
                         torch.manual_seed(split_seed)
@@ -405,7 +431,7 @@ def combination():
                             if cuda:
                                 torch.cuda.manual_seed(seed)
 
-                            acc = test(modified_adj, data, cuda, pre_test_data)
+                            acc = test_gcn(modified_adj, data, cuda, pre_test_data)
                             row = {'dataset':dataset, 'selection':selection_name, 'connection':connection_name,
                                     'gcn_seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed,
                                     'split_seed':split_seed}
@@ -471,8 +497,25 @@ def combination():
 #     # build_structack_katz_similarity,
 #     # build_structack_community,
 # ]
+
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run structack.")
+    parser.add_argument('--datasets', nargs='+', default=['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed'], help='List of datasets to evaluate.')
+    # parser.add_argument('--output', nargs='?', default='reports/eval/comb_acc_eval_noticeability.csv', help='Evaluation results output filepath.')
+    parser.add_argument('--approach_type', nargs='?', default='structack', help='Type of approaches to run [baseline/structack/clean].')
+    return parser.parse_args()
+
+
 cuda = torch.cuda.is_available()
+    
 
 if __name__ == '__main__':
-    # main()
-    combination()
+    args = parse_args()
+    if args.approach_type == 'structack':
+        combination(args.datasets)
+    elif args.approach_type == 'baseline':
+        main(args.datasets)
+    elif args.approach_type == 'clean':
+        clean(args.datasets)

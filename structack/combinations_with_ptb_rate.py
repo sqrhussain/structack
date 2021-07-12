@@ -8,7 +8,7 @@ from deeprobust.graph.defense import GCN
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
-from structack.structack import StructackBase
+from structack.structack import StructackBase, build_custom
 from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
 from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
 from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
@@ -58,7 +58,7 @@ def main():
                 if f'{dataset}+{selection_name}+{connection_name}' not in ptb_rate_map:
                     continue
                 perturbation_rate = ptb_rate_map[f'{dataset}+{selection_name}+{connection_name}']
-                modified_adj, elapsed = st.apply_structack(st.build_custom(selection, connection), st.attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
+                modified_adj, elapsed = st.apply_structack(build_custom(selection, connection), st.attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
                 for split_seed in range(split_seeds):
                     np.random.seed(split_seed)
                     torch.manual_seed(split_seed)

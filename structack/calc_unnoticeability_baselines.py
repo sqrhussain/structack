@@ -7,9 +7,9 @@ from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
 from structack.structack import StructackBase, build_custom
-from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
-from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
-from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
+# from structack.structack import StructackDegreeRandomLinking, StructackDegree, StructackDegreeDistance,StructackDistance
+# from structack.structack import StructackEigenvectorCentrality, StructackBetweennessCentrality, StructackClosenessCentrality
+# from structack.structack import StructackPageRank, StructackKatzSimilarity, StructackCommunity
 import structack.node_selection as ns
 import structack.node_connection as nc
 # from structack.calc_unnoticeability import *
