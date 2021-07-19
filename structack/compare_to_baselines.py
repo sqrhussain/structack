@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 import torch.optim as optim
-from deeprobust.graph.defense import GCN
+from deeprobust.graph.defense import GCN, GAT, SGC, ChebNet
 from deeprobust.graph.utils import *
 from deeprobust.graph.data import Dataset
 from deeprobust.graph.global_attack import DICE, Random, Metattack, PGDAttack, MinMax
@@ -289,8 +289,86 @@ def test_gcn(adj, data, cuda, data_prep,nhid=16):
 
 
 
-def main(datasets):
-    df_path = 'reports/eval/baseline_eval.csv'
+def test_cheb(adj, data, cuda, data_prep,nhid=16):
+    ''' test on ChebNet '''
+    device = torch.device("cuda" if cuda else "cpu")
+    features, labels, idx_train, idx_val, idx_test = data_prep(data,device)
+
+    
+    cheb = ChebNet(nfeat=features.shape[1],
+              nhid=nhid,
+              nclass=labels.max().item() + 1,
+              dropout=0.5, device=device)
+
+    cheb = cheb.to(device)
+
+    optimizer = optim.Adam(cheb.parameters(),
+                           lr=0.01, weight_decay=5e-4)
+
+    cheb.fit(features, adj, labels, idx_train) # train without model picking
+    # cheb.fit(features, adj, labels, idx_train, idx_val) # train with validation model picking
+    output = cheb.output
+    loss_test = F.nll_loss(output[idx_test], labels[idx_test])
+    acc_test = accuracy(output[idx_test], labels[idx_test])
+
+    return acc_test.item()
+
+
+def test_gat(adj, data, cuda, data_prep,nhid=16):
+    ''' test on GAT '''
+    device = torch.device("cuda" if cuda else "cpu")
+    features, labels, idx_train, idx_val, idx_test = data_prep(data,device)
+
+    
+    gat = GAT(nfeat=features.shape[1],
+              nhid=nhid,
+              nclass=labels.max().item() + 1,
+              dropout=0.5, device=device)
+
+    gat = gat.to(device)
+
+    optimizer = optim.Adam(gat.parameters(),
+                           lr=0.01, weight_decay=5e-4)
+
+    gat.fit(features, adj, labels, idx_train) # train without model picking
+    # gat.fit(features, adj, labels, idx_train, idx_val) # train with validation model picking
+    output = gat.output
+    loss_test = F.nll_loss(output[idx_test], labels[idx_test])
+    acc_test = accuracy(output[idx_test], labels[idx_test])
+
+    return acc_test.item()
+
+
+def test_sgc(adj, data, cuda, data_prep,nhid=16):
+    ''' test on SGC '''
+    device = torch.device("cuda" if cuda else "cpu")
+    features, labels, idx_train, idx_val, idx_test = data_prep(data,device)
+
+    
+    sgc = SGC(nfeat=features.shape[1],
+              nclass=labels.max().item() + 1,
+              K=2, device=device)
+
+    sgc = sgc.to(device)
+
+    optimizer = optim.Adam(sgc.parameters(),
+                           lr=0.01, weight_decay=5e-4)
+
+    sgc.fit(features, adj, labels, idx_train) # train without model picking
+    # sgc.fit(features, adj, labels, idx_train, idx_val) # train with validation model picking
+    output = sgc.output
+    loss_test = F.nll_loss(output[idx_test], labels[idx_test])
+    acc_test = accuracy(output[idx_test], labels[idx_test])
+
+    return acc_test.item()
+
+
+
+
+
+def main(datasets, model):
+    test_func = func[model]
+    df_path = f'reports/eval/baseline_eval-{model}.csv'
     attacks = [
         # [attack_random, 'Random', build_random],
         [attack_dice, 'DICE', build_dice],
@@ -316,7 +394,7 @@ def main(datasets):
                             torch.manual_seed(gcn_seed)
                             if cuda:
                                 torch.cuda.manual_seed(gcn_seed)
-                            acc = test_gcn(modified_adj, data, cuda, pre_test_data)
+                            acc = test_func(modified_adj, data, cuda, pre_test_data)
                             row = {'dataset':dataset, 'attack':model_name, 'gcn_seed':gcn_seed, 'acc':acc,
                                 'perturbation_rate':perturbation_rate,'elapsed':elapsed, 'attack_seed' :attack_seed,
                                 'split_seed':split_seed}
@@ -328,8 +406,9 @@ def main(datasets):
                             cdf.to_csv(df_path,index=False)
 
 
-def clean(datasets):
-    df_path = 'reports/eval/clean.csv'
+def clean(datasets, model):
+    test_func = func[model]
+    df_path = f'reports/eval/clean-{model}.csv'
     split_seeds = 5
     gcn_seeds = 5
 
@@ -348,7 +427,7 @@ def clean(datasets):
                 torch.manual_seed(seed)
                 if cuda:
                     torch.cuda.manual_seed(seed)
-                acc = test_gcn(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
+                acc = test_func(postprocess_adj(data.adj).to(torch.device("cuda" if cuda else "cpu")),
                             data, cuda, pre_test_data)
                 row = {'dataset':dataset, 'selection':'clean', 'connection':'clean',
                         'gcn_seed':seed, 'acc':acc, 'perturbation_rate':0,'elapsed':0,
@@ -360,9 +439,10 @@ def clean(datasets):
                 cdf = cdf.append(row, ignore_index=True)
                 cdf.to_csv(df_path,index=False)
 
-def combination(datasets):
+def combination(datasets, model):
+    test_func = func[model]
 
-    df_path = 'reports/eval/comb_acc_eval-new-datasets.csv'
+    df_path = f'reports/eval/comb_acc_eval-new-datasets-{model}.csv'
 
     selection_options = [
                 [ns.get_nodes_with_lowest_degree,'degree'],
@@ -431,7 +511,7 @@ def combination(datasets):
                             if cuda:
                                 torch.cuda.manual_seed(seed)
 
-                            acc = test_gcn(modified_adj, data, cuda, pre_test_data)
+                            acc = test_func(modified_adj, data, cuda, pre_test_data)
                             row = {'dataset':dataset, 'selection':selection_name, 'connection':connection_name,
                                     'gcn_seed':seed, 'acc':acc, 'perturbation_rate':perturbation_rate,'elapsed':elapsed,
                                     'split_seed':split_seed}
@@ -441,6 +521,32 @@ def combination(datasets):
                                 cdf = pd.read_csv(df_path)
                             cdf = cdf.append(row, ignore_index=True)
                             cdf.to_csv(df_path,index=False)
+
+
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run structack.")
+    parser.add_argument('--datasets', nargs='+', default=['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed'], help='List of datasets to evaluate.')
+    # parser.add_argument('--output', nargs='?', default='reports/eval/comb_acc_eval_noticeability.csv', help='Evaluation results output filepath.')
+    parser.add_argument('--approach_type', nargs='?', default='structack', help='Type of approaches to run [baseline/structack/clean].')
+    parser.add_argument('--model', default='gcn')
+    return parser.parse_args()
+
+
+cuda = torch.cuda.is_available()
+func = {'gcn':test_gcn, 'sgc':test_sgc, 'gat':test_gat, 'cheb':test_cheb}
+
+if __name__ == '__main__':
+    args = parse_args()
+    if args.approach_type == 'structack':
+        combination(args.datasets, args.model)
+    elif args.approach_type == 'baseline':
+        main(args.datasets, args.model)
+    elif args.approach_type == 'clean':
+        clean(args.datasets, args.model)
+
+
 
 
 
@@ -498,24 +604,3 @@ def combination(datasets):
 #     # build_structack_community,
 # ]
 
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run structack.")
-    parser.add_argument('--datasets', nargs='+', default=['citeseer', 'cora', 'cora_ml', 'polblogs', 'pubmed'], help='List of datasets to evaluate.')
-    # parser.add_argument('--output', nargs='?', default='reports/eval/comb_acc_eval_noticeability.csv', help='Evaluation results output filepath.')
-    parser.add_argument('--approach_type', nargs='?', default='structack', help='Type of approaches to run [baseline/structack/clean].')
-    return parser.parse_args()
-
-
-cuda = torch.cuda.is_available()
-    
-
-if __name__ == '__main__':
-    args = parse_args()
-    if args.approach_type == 'structack':
-        combination(args.datasets)
-    elif args.approach_type == 'baseline':
-        main(args.datasets)
-    elif args.approach_type == 'clean':
-        clean(args.datasets)
