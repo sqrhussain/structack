@@ -1,0 +1,2 @@
+deeprobust==0.2.2
+python-louvain==0.15
