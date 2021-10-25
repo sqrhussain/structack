@@ -6,7 +6,7 @@ The attacks have only access to the adjacency matrix and not the nodes feature v
 These attacks are currenlty based on the knowledge of the degree distribution and community structure.
 
 ### Run
-The main testin code is in the file `evaluate_attacks.py`.
+The main testing code is in the file `evaluate_attacks.py`.
 Please run `python -u -m evaluate_attacks` from the project root directory.
 
 * The `--model` argument chooses the GNN model to train after the perturbation (`gcn, sgc, gat`).
