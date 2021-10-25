@@ -1,9 +1,9 @@
 # structack
-Structure-aware attacks on GNNs [Paper](https://dl.acm.org/doi/abs/10.1145/3465336.3475110)
+Structack: Structure-based Adversarial Attacks on Graph Neural Networks \[[Paper](https://dl.acm.org/doi/abs/10.1145/3465336.3475110)\]
 
 This repository implements global black-box adversarial attacks on the node classification task with graph neural networks.
 The attacks have only access to the adjacency matrix and not the nodes feature vectors.
-These attacks are currenlty based on the knowledge of the degree distribution and community structure.
+These attacks select nodes with minimum centrality and connect pairs of nodes with minimum similarity.
 
 ### Run
 The main testing code is in the file `evaluate_attacks.py`.
