@@ -367,7 +367,7 @@ def combination(datasets, model):
 
                 data = Dataset(root='/tmp/', name=dataset)
                 print(f'attack [{selection_name}]*[{connection_name}]')
-                for perturbation_rate in [0.01]:#,0.10,0.15,0.20]:
+                for perturbation_rate in [0.05]:#,0.10,0.15,0.20]:
                     modified_adj, elapsed = apply_structack(build_custom(selection, connection, dataset), attack_structack, data, perturbation_rate, cuda and (dataset!='pubmed'), seed=0)
                     for split_seed in range(split_seeds):
                         np.random.seed(split_seed)
